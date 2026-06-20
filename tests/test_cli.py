@@ -61,6 +61,34 @@ def test_invalid_format_fails(tmp_path: Path):
     assert "Invalid format" in result.output or "must be 'json' or 'markdown'" in result.output
 
 
+def test_output_file_json(tmp_path: Path):
+    out_dir = tmp_path / "reports"
+    out_file = out_dir / "audit.json"
+    result = runner.invoke(app, ["audit", str(tmp_path), "--format", "json", "--output", str(out_file)])
+    assert result.exit_code == 0
+    assert "Wrote audit report to" in result.output
+    assert out_file.exists()
+    import json as _json
+
+    content = _json.loads(out_file.read_text(encoding="utf-8"))
+    assert content.get("status") == "ok"
+    # stdout should not contain the full JSON
+    assert "{\n  \"status\"" not in result.output
+
+
+def test_output_file_markdown_and_parent_created(tmp_path: Path):
+    nested = tmp_path / "a" / "b"
+    out_file = nested / "audit.md"
+    result = runner.invoke(app, ["audit", str(tmp_path), "--format", "markdown", "--output", str(out_file)])
+    assert result.exit_code == 0
+    assert "Wrote audit report to" in result.output
+    assert out_file.exists()
+    content = out_file.read_text(encoding="utf-8")
+    assert "# DrRepo Audit Report" in content
+    # stdout should not contain the report itself
+    assert "# DrRepo Audit Report" not in result.output
+
+
 def test_audit_missing_path():
     result = runner.invoke(app, ["audit", "no/such/path"]) 
     assert result.exit_code != 0

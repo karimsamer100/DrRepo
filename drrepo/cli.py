@@ -25,6 +25,7 @@ def main() -> None:
 def audit(
     path: Path = typer.Argument(..., help="Path to local repository"),
     output_format: str = typer.Option("json", "--format", help="Output format: json or markdown"),
+    output: Path | None = typer.Option(None, "--output", help="Optional output file path to write report to"),
 ) -> None:
     """Run a lightweight audit placeholder against a local path."""
     try:
@@ -38,11 +39,25 @@ def audit(
     if fmt not in ("json", "markdown"):
         raise typer.BadParameter("Invalid format: must be 'json' or 'markdown'")
 
+    # Build the formatted string
     if fmt == "json":
-        typer.echo(json.dumps(audit_result, indent=2))
+        formatted = json.dumps(audit_result, indent=2)
     else:
-        md = render_markdown_report(audit_result)
-        typer.echo(md)
+        formatted = render_markdown_report(audit_result)
+
+    if output:
+        out_path = Path(output)
+        # create parent directories if necessary (and not current dir)
+        parent = out_path.parent
+        if str(parent) != "":
+            parent.mkdir(parents=True, exist_ok=True)
+        try:
+            out_path.write_text(formatted, encoding="utf-8")
+        except OSError as exc:
+            raise typer.BadParameter(f"Failed to write report: {exc}") from exc
+        typer.echo(f"Wrote audit report to {out_path}")
+    else:
+        typer.echo(formatted)
 
 
 if __name__ == "__main__":
