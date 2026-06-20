@@ -1,0 +1,162 @@
+from typing import Any, Dict, List, Optional
+
+def _safe_get(d: Dict[str, Any], key: str, default: Any = None) -> Any:
+    return d.get(key, default) if isinstance(d, dict) else default
+
+
+def _format_bool(v: Optional[bool]) -> str:
+    if v is True:
+        return "Yes"
+    if v is False:
+        return "No"
+    return "N/A"
+
+
+def _count_findings(tool_entry: Dict[str, Any]) -> int:
+    findings = tool_entry.get("findings")
+    if findings is None:
+        return 0
+    if isinstance(findings, list):
+        return len(findings)
+    return 0
+
+
+def _count_errors(tool_entry: Dict[str, Any]) -> int:
+    errors = tool_entry.get("errors")
+    if errors is None:
+        return 0
+    if isinstance(errors, list):
+        return len(errors)
+    return 0
+
+
+def render_markdown_report(audit: Dict[str, Any]) -> str:
+    """Render an audit dictionary into a Markdown string.
+
+    The function is defensive: missing keys are handled gracefully.
+    """
+    if not isinstance(audit, dict):
+        audit = {}
+
+    lines: List[str] = []
+
+    # Title
+    lines.append("# DrRepo Audit Report")
+
+    # Repository
+    lines.append("## Repository")
+    path = _safe_get(audit, "path", "N/A")
+    status = _safe_get(audit, "status", "N/A")
+    lines.append(f"- **Path**: {path}")
+    lines.append(f"- **Status**: {status}")
+
+    # Score Summary
+    lines.append("")
+    lines.append("## Score Summary")
+    scoring = _safe_get(audit, "scoring", {}) or {}
+    overall = _safe_get(scoring, "overall_score", "N/A")
+    lines.append(f"- **Overall score**: {overall}")
+    sections = _safe_get(scoring, "sections", {}) or {}
+    for sec in ("static_analysis", "test_analysis", "repository_analysis"):
+        secscore = _safe_get(sections, sec, {})
+        s = _safe_get(secscore, "score", "N/A")
+        lines.append(f"- **{sec}**: {s}")
+
+    # Metadata Summary
+    lines.append("")
+    lines.append("## Metadata Summary")
+    metadata = _safe_get(audit, "metadata", {}) or {}
+    # List common metadata keys
+    meta_keys = [
+        ("total_files", "Total files"),
+        ("total_directories", "Total directories"),
+        ("python_files", "Python files"),
+        ("test_files", "Test files"),
+        ("has_readme", "Has README"),
+        ("has_tests", "Has tests"),
+        ("has_docs", "Has docs"),
+        ("has_pyproject", "Has pyproject"),
+        ("has_gitignore", "Has .gitignore"),
+    ]
+    for key, label in meta_keys:
+        val = metadata.get(key)
+        if isinstance(val, bool):
+            val_str = _format_bool(val)
+        else:
+            val_str = str(val) if val is not None else "N/A"
+        lines.append(f"- **{label}**: {val_str}")
+
+    # Analyzer Summary (table)
+    lines.append("")
+    lines.append("## Analyzer Summary")
+    lines.append("")
+    lines.append("| Section | Tool | Status | Findings | Errors |")
+    lines.append("|---|---|---:|---:|---:|")
+
+    def _render_section_table(section_name: str) -> None:
+        entries = _safe_get(audit, section_name, []) or []
+        if not isinstance(entries, list):
+            return
+        for entry in entries:
+            tool = entry.get("tool") or entry.get("name") or "-"
+            status = entry.get("status", "N/A")
+            findings = _count_findings(entry)
+            errors = _count_errors(entry)
+            lines.append(f"| {section_name} | {tool} | {status} | {findings} | {errors} |")
+
+    _render_section_table("static_analysis")
+    _render_section_table("test_analysis")
+    _render_section_table("repository_analysis")
+
+    # Findings
+    lines.append("")
+    lines.append("## Findings")
+    any_findings = False
+    for sec in ("static_analysis", "test_analysis", "repository_analysis"):
+        entries = _safe_get(audit, sec, []) or []
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            tool = entry.get("tool") or entry.get("name") or sec
+            findings = entry.get("findings") or []
+            if findings:
+                any_findings = True
+                lines.append(f"### {sec} / {tool}")
+                for f in findings:
+                    severity = f.get("severity", "unknown")
+                    code = f.get("code", "")
+                    message = f.get("message", "")
+                    file_path = f.get("file_path")
+                    line = f.get("line")
+                    loc = ""
+                    if file_path:
+                        loc = file_path
+                        if line:
+                            loc = f"{loc}:{line}"
+                    loc_part = f" ({loc})" if loc else ""
+                    lines.append(f"- **{severity}** `{code}`: {message}{loc_part}")
+
+    if not any_findings:
+        lines.append("No findings reported.")
+
+    # Errors
+    lines.append("")
+    lines.append("## Errors")
+    any_errors = False
+    for sec in ("static_analysis", "test_analysis", "repository_analysis"):
+        entries = _safe_get(audit, sec, []) or []
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            tool = entry.get("tool") or entry.get("name") or sec
+            errors = entry.get("errors") or []
+            if errors:
+                any_errors = True
+                lines.append(f"### {sec} / {tool}")
+                for e in errors:
+                    lines.append(f"- {e}")
+
+    if not any_errors:
+        lines.append("No analyzer errors reported.")
+
+    return "\n".join(lines)
