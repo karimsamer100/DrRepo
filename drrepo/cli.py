@@ -11,6 +11,7 @@ import typer
 
 from drrepo.input.resolver import resolve_local_path
 from drrepo.scanner.repository_scanner import scan_repository
+from drrepo.analyzers.service import run_static_analyzers, static_analyzers_to_dict
 
 
 app = typer.Typer(help="DrRepo - repository audit tool (minimal)")
@@ -33,6 +34,12 @@ def audit(path: Path = typer.Argument(..., help="Path to local repository")) -> 
     # Delegate to the scanner which performs the repository walk and
     # returns the JSON-serializable metadata structure.
     scanned = scan_repository(resolved_path)
+    # Run static analyzers against the detected repository root. Let unexpected
+    # errors propagate — the analyzer service already converts per-analyzer
+    # failures into ToolResult objects.
+    analyzer_results = run_static_analyzers(scanned["path"])
+    scanned["static_analysis"] = static_analyzers_to_dict(analyzer_results)
+
     typer.echo(json.dumps(scanned, indent=2))
 
 
