@@ -69,7 +69,7 @@ def test_audit_missing_path():
 def test_audit_includes_static_analysis(monkeypatch, tmp_path: Path):
     # Prepare fake analyzer results (all completed)
     fake = [ToolResult(tool="ruff", status="completed"), ToolResult(tool="bandit", status="completed"), ToolResult(tool="radon", status="completed")]
-    monkeypatch.setattr(cli_module, "run_static_analyzers", lambda p: fake)
+    monkeypatch.setattr("drrepo.audit.run_static_analyzers", lambda p: fake)
 
     # Prepare fake test analyzer results: pytest has a high-severity finding
     fake_tests = [
@@ -80,7 +80,7 @@ def test_audit_includes_static_analysis(monkeypatch, tmp_path: Path):
         ),
         ToolResult(tool="coverage", status="not_available", errors=["missing"]),
     ]
-    monkeypatch.setattr(cli_module, "run_test_analyzers", lambda p: fake_tests)
+    monkeypatch.setattr("drrepo.audit.run_test_analyzers", lambda p: fake_tests)
 
     # Prepare fake repository analyzer results: readme has a low-severity finding
     fake_repo = [
@@ -91,7 +91,7 @@ def test_audit_includes_static_analysis(monkeypatch, tmp_path: Path):
         ),
         ToolResult(tool="structure", status="completed"),
     ]
-    monkeypatch.setattr(cli_module, "run_repository_analyzers", lambda p: fake_repo)
+    monkeypatch.setattr("drrepo.audit.run_repository_analyzers", lambda p: fake_repo)
 
     result = runner.invoke(app, ["audit", str(tmp_path)])
     assert result.exit_code == 0
@@ -132,12 +132,12 @@ def test_cli_passes_detected_root_to_analyzers(monkeypatch, tmp_path: Path):
         captured["test_path"] = path
         return [ToolResult(tool="pytest", status="completed"), ToolResult(tool="coverage", status="completed", summary={"coverage_percent": 80.0})]
 
-    monkeypatch.setattr(cli_module, "run_static_analyzers", recorder)
-    monkeypatch.setattr(cli_module, "run_test_analyzers", recorder_tests)
+    monkeypatch.setattr("drrepo.audit.run_static_analyzers", recorder)
+    monkeypatch.setattr("drrepo.audit.run_test_analyzers", recorder_tests)
     def recorder_repo(path):
         captured["repo_path"] = path
         return [ToolResult(tool="readme", status="completed"), ToolResult(tool="structure", status="completed")]
-    monkeypatch.setattr(cli_module, "run_repository_analyzers", recorder_repo)
+    monkeypatch.setattr("drrepo.audit.run_repository_analyzers", recorder_repo)
 
     result = runner.invoke(app, ["audit", str(nested)])
     assert result.exit_code == 0
