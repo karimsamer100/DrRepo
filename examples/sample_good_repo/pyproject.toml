@@ -1,10 +1,7 @@
 [project]
-name = "sample_good_repo"
-version = "0.0.1"
+name = "sample-good-repo"
+version = "0.1.0"
+requires-python = ">=3.11"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-
-[project]
-name = "sample_good_repo"
-version = "0.0.1"

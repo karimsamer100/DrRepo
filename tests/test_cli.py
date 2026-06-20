@@ -41,6 +41,9 @@ def test_audit_includes_static_analysis(monkeypatch, tmp_path: Path):
         return fake
 
     monkeypatch.setattr(cli_module, "run_static_analyzers", lambda p: fake)
+    # Prepare fake test analyzer results
+    fake_tests = [ToolResult(tool="pytest", status="completed", summary={"passed": 3})]
+    monkeypatch.setattr(cli_module, "run_test_analyzers", lambda p: fake_tests)
 
     result = runner.invoke(app, ["audit", str(tmp_path)])
     assert result.exit_code == 0
@@ -52,6 +55,8 @@ def test_audit_includes_static_analysis(monkeypatch, tmp_path: Path):
     assert "ruff" in out
     assert "bandit" in out
     assert "radon" in out
+    assert '"test_analysis"' in out
+    assert "pytest" in out
 
 
 def test_cli_passes_detected_root_to_analyzers(monkeypatch, tmp_path: Path):
@@ -68,9 +73,15 @@ def test_cli_passes_detected_root_to_analyzers(monkeypatch, tmp_path: Path):
         captured["path"] = path
         return [ToolResult(tool="ruff", status="completed"), ToolResult(tool="bandit", status="completed"), ToolResult(tool="radon", status="completed")]
 
+    def recorder_tests(path):
+        captured["test_path"] = path
+        return [ToolResult(tool="pytest", status="completed")]
+
     monkeypatch.setattr(cli_module, "run_static_analyzers", recorder)
+    monkeypatch.setattr(cli_module, "run_test_analyzers", recorder_tests)
 
     result = runner.invoke(app, ["audit", str(nested)])
     assert result.exit_code == 0
     # The service should be called with the detected repository root
     assert str(captured.get("path")) == str(project_root)
+    assert str(captured.get("test_path")) == str(project_root)
