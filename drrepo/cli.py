@@ -10,6 +10,7 @@ from pathlib import Path
 import typer
 
 from drrepo.input.resolver import resolve_local_path
+from drrepo.scanner.repository_scanner import scan_repository
 
 
 app = typer.Typer(help="DrRepo - repository audit tool (minimal)")
@@ -29,12 +30,10 @@ def audit(path: Path = typer.Argument(..., help="Path to local repository")) -> 
         raise typer.BadParameter(str(exc)) from exc
     except NotADirectoryError as exc:
         raise typer.BadParameter(str(exc)) from exc
-
-    result = {
-        "status": "ok",
-        "path": str(resolved_path),
-    }
-    typer.echo(json.dumps(result, indent=2))
+    # Delegate to the scanner which performs the repository walk and
+    # returns the JSON-serializable metadata structure.
+    scanned = scan_repository(resolved_path)
+    typer.echo(json.dumps(scanned, indent=2))
 
 
 if __name__ == "__main__":
