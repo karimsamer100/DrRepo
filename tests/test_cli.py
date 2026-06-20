@@ -42,7 +42,7 @@ def test_audit_includes_static_analysis(monkeypatch, tmp_path: Path):
 
     monkeypatch.setattr(cli_module, "run_static_analyzers", lambda p: fake)
     # Prepare fake test analyzer results
-    fake_tests = [ToolResult(tool="pytest", status="completed", summary={"passed": 3})]
+    fake_tests = [ToolResult(tool="pytest", status="completed", summary={"passed": 3}), ToolResult(tool="coverage", status="completed", summary={"coverage_percent": 80.0})]
     monkeypatch.setattr(cli_module, "run_test_analyzers", lambda p: fake_tests)
 
     result = runner.invoke(app, ["audit", str(tmp_path)])
@@ -75,7 +75,7 @@ def test_cli_passes_detected_root_to_analyzers(monkeypatch, tmp_path: Path):
 
     def recorder_tests(path):
         captured["test_path"] = path
-        return [ToolResult(tool="pytest", status="completed")]
+        return [ToolResult(tool="pytest", status="completed"), ToolResult(tool="coverage", status="completed", summary={"coverage_percent": 80.0})]
 
     monkeypatch.setattr(cli_module, "run_static_analyzers", recorder)
     monkeypatch.setattr(cli_module, "run_test_analyzers", recorder_tests)

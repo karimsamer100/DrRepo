@@ -6,6 +6,7 @@ from typing import List
 from ..input.resolver import resolve_local_path
 from .models import ToolResult, tool_result_to_dict, make_tool_result
 from .pytest_runner import run_pytest
+from .coverage_runner import run_coverage
 
 
 def run_test_analyzers(path: str | Path) -> List[ToolResult]:
@@ -19,6 +20,12 @@ def run_test_analyzers(path: str | Path) -> List[ToolResult]:
     except Exception as exc:
         p = make_tool_result("pytest", "failed_to_run", summary={}, findings=[], errors=[str(exc)], raw_output=None)
     results.append(p)
+
+    try:
+        c = run_coverage(resolved)
+    except Exception as exc:
+        c = make_tool_result("coverage", "failed_to_run", summary={}, findings=[], errors=[str(exc)], raw_output=None)
+    results.append(c)
 
     return results
 
