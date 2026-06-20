@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Iterable
 
-from drrepo.input.resolver import resolve_local_path
+from drrepo.input.resolver import resolve_local_path, find_repository_root
 
 
 _IGNORED_DIRS = {
@@ -46,7 +46,8 @@ def scan_repository(path: str | Path) -> dict[str, object]:
     `drrepo.input.resolver.resolve_local_path` and then walks the tree
     counting files while skipping common generated/cache directories.
     """
-    root = resolve_local_path(path)
+    # Determine the repository root (may be the same as the input path)
+    root = find_repository_root(path)
 
     total_files = 0
     python_files = 0
@@ -62,27 +63,28 @@ def scan_repository(path: str | Path) -> dict[str, object]:
     has_ci = False
 
     # Check for some root-level markers first
-    root_files = {p.name.lower(): p for p in root.iterdir() if p.exists()}
+    entries = {p.name for p in root.iterdir() if p.exists()}
+
     # README detection (case-insensitive)
-    for name in root_files:
-        if name.startswith("readme"):
+    for name in entries:
+        if name.lower().startswith("readme"):
             has_readme = True
             break
 
-    if "pyproject.toml" in root_files:
+    if "pyproject.toml" in entries:
         has_pyproject = True
 
-    if "requirements.txt" in root_files:
+    if "requirements.txt" in entries:
         has_requirements = True
 
-    if ".gitignore" in root_files:
+    if ".gitignore" in entries:
         has_gitignore = True
 
-    if ".env.example" in root_files:
+    if ".env.example" in entries:
         has_env_example = True
 
-    if "dockerfile" in root_files or "dockerfile" in (n.lower() for n in root_files):
-        # dockerfile may be upper or lower case
+    # dockerfile may be upper or lower case
+    if any(n.lower() == "dockerfile" for n in entries):
         has_dockerfile = True
 
     if (root / ".github" / "workflows").is_dir():
@@ -93,6 +95,21 @@ def scan_repository(path: str | Path) -> dict[str, object]:
 
     if (root / "tests").is_dir():
         has_tests_folder = True
+
+    # Collect root markers present at detected root
+    possible_markers = [
+        ".git",
+        "pyproject.toml",
+        "setup.py",
+        "requirements.txt",
+        "README.md",
+        "README.rst",
+    ]
+
+    root_markers: list[str] = []
+    for m in possible_markers:
+        if (root / m).exists():
+            root_markers.append(m)
 
     # Walk the tree and collect file counts, skipping ignored directories
     for p in root.rglob("*"):
@@ -131,6 +148,7 @@ def scan_repository(path: str | Path) -> dict[str, object]:
         "has_env_example": has_env_example,
         "has_dockerfile": has_dockerfile,
         "has_ci": has_ci,
+        "root_markers": root_markers,
     }
 
     return {"status": "ok", "path": str(root), "metadata": metadata}
