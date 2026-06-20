@@ -14,6 +14,7 @@ from drrepo.scanner.repository_scanner import scan_repository
 from drrepo.analyzers.service import run_static_analyzers, static_analyzers_to_dict
 from drrepo.analyzers.test_service import run_test_analyzers, test_analyzers_to_dict
 from drrepo.analyzers.repository_service import run_repository_analyzers, repository_analyzers_to_dict
+from drrepo.scoring import score_audit_sections
 
 
 app = typer.Typer(help="DrRepo - repository audit tool (minimal)")
@@ -43,10 +44,16 @@ def audit(path: Path = typer.Argument(..., help="Path to local repository")) -> 
     scanned["static_analysis"] = static_analyzers_to_dict(analyzer_results)
     # Run test analyzers (pytest)
     test_results = run_test_analyzers(scanned["path"])
-    scanned["test_analysis"] = test_analyzers_to_dict(test_results)
     # Run repository analyzers (readme, structure)
     repo_results = run_repository_analyzers(scanned["path"])
+
+    # Score the raw ToolResult objects before converting to dicts
+    scoring = score_audit_sections(analyzer_results, test_results, repo_results)
+
+    scanned["static_analysis"] = static_analyzers_to_dict(analyzer_results)
+    scanned["test_analysis"] = test_analyzers_to_dict(test_results)
     scanned["repository_analysis"] = repository_analyzers_to_dict(repo_results)
+    scanned["scoring"] = scoring
 
     typer.echo(json.dumps(scanned, indent=2))
 

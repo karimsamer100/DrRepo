@@ -5,7 +5,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from drrepo.cli import app
-from drrepo.analyzers.models import ToolResult
+from drrepo.analyzers.models import ToolResult, ToolFinding
 import drrepo.cli as cli_module
 
 
@@ -34,35 +34,51 @@ def test_audit_missing_path():
 
 
 def test_audit_includes_static_analysis(monkeypatch, tmp_path: Path):
-    # Prepare fake analyzer results
-    fake = [ToolResult(tool="ruff", status="completed"), ToolResult(tool="bandit", status="not_available", errors=["missing"]), ToolResult(tool="radon", status="completed")]
-
-    def fake_run(path):
-        return fake
-
+    # Prepare fake analyzer results (all completed)
+    fake = [ToolResult(tool="ruff", status="completed"), ToolResult(tool="bandit", status="completed"), ToolResult(tool="radon", status="completed")]
     monkeypatch.setattr(cli_module, "run_static_analyzers", lambda p: fake)
-    # Prepare fake test analyzer results
-    fake_tests = [ToolResult(tool="pytest", status="completed", summary={"passed": 3}), ToolResult(tool="coverage", status="completed", summary={"coverage_percent": 80.0})]
+
+    # Prepare fake test analyzer results: pytest has a high-severity finding
+    fake_tests = [
+        ToolResult(
+            tool="pytest",
+            status="completed",
+            findings=[ToolFinding(tool="pytest", message="1 test failed", severity="high", code="PYTEST-FAILED")],
+        ),
+        ToolResult(tool="coverage", status="not_available", errors=["missing"]),
+    ]
     monkeypatch.setattr(cli_module, "run_test_analyzers", lambda p: fake_tests)
-    # Prepare fake repository analyzer results
-    fake_repo = [ToolResult(tool="readme", status="completed"), ToolResult(tool="structure", status="completed")]
+
+    # Prepare fake repository analyzer results: readme has a low-severity finding
+    fake_repo = [
+        ToolResult(
+            tool="readme",
+            status="completed",
+            findings=[ToolFinding(tool="readme", message="README is missing license information", severity="low", code="README-MISSING-LICENSE")],
+        ),
+        ToolResult(tool="structure", status="completed"),
+    ]
     monkeypatch.setattr(cli_module, "run_repository_analyzers", lambda p: fake_repo)
 
     result = runner.invoke(app, ["audit", str(tmp_path)])
     assert result.exit_code == 0
-    out = result.output
-    assert '"status": "ok"' in out
-    assert '"metadata"' in out
-    assert '"static_analysis"' in out
-    # Ensure ordering of tools
-    assert "ruff" in out
-    assert "bandit" in out
-    assert "radon" in out
-    assert '"test_analysis"' in out
-    assert "pytest" in out
-    assert '"repository_analysis"' in out
-    assert "readme" in out
-    assert "structure" in out
+    import json as _json
+
+    out = _json.loads(result.output)
+    assert out["status"] == "ok"
+    assert "metadata" in out
+    assert "static_analysis" in out
+    assert [t["tool"] for t in out["static_analysis"]] == ["ruff", "bandit", "radon"]
+    assert "test_analysis" in out
+    assert [t["tool"] for t in out["test_analysis"]] == ["pytest", "coverage"]
+    assert "repository_analysis" in out
+    assert [t["tool"] for t in out["repository_analysis"]] == ["readme", "structure"]
+    assert "scoring" in out
+    # Expected scores: static 100, test 85 (high finding -> -15), repo 97 (low finding -> -3)
+    assert out["scoring"]["overall_score"] == 94
+    assert out["scoring"]["sections"]["static_analysis"]["score"] == 100
+    assert out["scoring"]["sections"]["test_analysis"]["score"] == 85
+    assert out["scoring"]["sections"]["repository_analysis"]["score"] == 97
 
 
 def test_cli_passes_detected_root_to_analyzers(monkeypatch, tmp_path: Path):
