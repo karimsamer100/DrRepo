@@ -1,3 +1,10 @@
 [project]
 name = "sample_good_repo"
 version = "0.0.1"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project]
+name = "sample_good_repo"
+version = "0.0.1"

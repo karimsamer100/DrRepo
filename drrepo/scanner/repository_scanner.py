@@ -52,6 +52,7 @@ def scan_repository(path: str | Path) -> dict[str, object]:
     total_files = 0
     python_files = 0
     test_files = 0
+    total_directories = 0
     has_readme = False
     has_tests_folder = False
     has_docs = False
@@ -111,32 +112,101 @@ def scan_repository(path: str | Path) -> dict[str, object]:
         if (root / m).exists():
             root_markers.append(m)
 
-    # Walk the tree and collect file counts, skipping ignored directories
+    # Top-level files and directories (exclude ignored)
+    top_level_files: list[str] = []
+    top_level_directories: list[str] = []
+    for child in sorted(root.iterdir(), key=lambda p: p.name):
+        if _is_ignored(child, root, _IGNORED_DIRS):
+            continue
+        if child.is_dir():
+            top_level_directories.append(child.name)
+        elif child.is_file():
+            top_level_files.append(child.name)
+
+    # Single pass: collect scanned files and directories excluding ignored
+    scanned_files: list[Path] = []
+    scanned_directories: list[Path] = []
     for p in root.rglob("*"):
         if p.is_dir():
+            if not _is_ignored(p, root, _IGNORED_DIRS):
+                scanned_directories.append(p)
             continue
 
         if _is_ignored(p, root, _IGNORED_DIRS):
             continue
 
-        total_files += 1
+        scanned_files.append(p)
+
+    # Use collected lists to compute metrics
+    total_files = len(scanned_files)
+    total_directories = len(scanned_directories)
+
+    file_extensions: dict[str, int] = {}
+    for p in scanned_files:
+        ext = p.suffix.lower() if p.suffix else "<no_ext>"
+        file_extensions[ext] = file_extensions.get(ext, 0) + 1
 
         if p.suffix == ".py":
             python_files += 1
-
             name = p.name
-            # test file naming conventions
-            if name.startswith("test_") or name.endswith("_test.py"):
+            if name.startswith("test_") or name.endswith("_test.py") or "tests" in p.parts:
                 test_files += 1
-            else:
-                # file inside a tests/ folder also counts as test file
-                if "tests" in p.parts:
-                    test_files += 1
 
     has_tests = has_tests_folder or test_files > 0
 
+    # dependency and config files at root
+    dependency_names = [
+        "requirements.txt",
+        "pyproject.toml",
+        "setup.py",
+        "setup.cfg",
+        "Pipfile",
+        "Pipfile.lock",
+        "poetry.lock",
+        "uv.lock",
+        "environment.yml",
+        "environment.yaml",
+    ]
+
+    config_names = [
+        "pyproject.toml",
+        "setup.cfg",
+        "tox.ini",
+        "pytest.ini",
+        "mypy.ini",
+        ".ruff.toml",
+        ".pre-commit-config.yaml",
+    ]
+
+    dependency_files = sorted([n for n in dependency_names if (root / n).exists()])
+    config_files = sorted([n for n in config_names if (root / n).exists()])
+
+    # source roots: top-level locations that contain python files
+    source_roots_set: set[str] = set()
+    # root level python files
+    if any((root / f).is_file() and (root / f).suffix.lower() == ".py" for f in top_level_files):
+        source_roots_set.add(".")
+
+    excluded_source_dirs = {"tests", "test", "docs", "examples", ".github"}
+    for dname in top_level_directories:
+        if dname in excluded_source_dirs:
+            continue
+        dpath = root / dname
+        # find any .py file in this top-level directory (recursively)
+        found = False
+        for p in dpath.rglob("*.py"):
+            if _is_ignored(p, root, _IGNORED_DIRS):
+                continue
+            found = True
+            break
+        if found:
+            source_roots_set.add(dname)
+
+    source_roots = sorted(source_roots_set)
+
     metadata = {
         "total_files": total_files,
+        "total_directories": total_directories,
         "python_files": python_files,
         "test_files": test_files,
         "has_readme": has_readme,
@@ -149,6 +219,12 @@ def scan_repository(path: str | Path) -> dict[str, object]:
         "has_dockerfile": has_dockerfile,
         "has_ci": has_ci,
         "root_markers": root_markers,
+        "top_level_files": top_level_files,
+        "top_level_directories": top_level_directories,
+        "file_extensions": file_extensions,
+        "dependency_files": dependency_files,
+        "config_files": config_files,
+        "source_roots": source_roots,
     }
 
     return {"status": "ok", "path": str(root), "metadata": metadata}
