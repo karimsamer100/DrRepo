@@ -18,6 +18,12 @@ def test_help_shows_audit():
     assert "audit" in result.output
 
 
+def test_audit_help_shows_format_option():
+    result = runner.invoke(app, ["audit", "--help"])
+    assert result.exit_code == 0
+    assert "--format" in result.output
+
+
 def test_audit_placeholder_ok(tmp_path: Path):
     result = runner.invoke(app, ["audit", str(tmp_path)])
     assert result.exit_code == 0
@@ -26,6 +32,33 @@ def test_audit_placeholder_ok(tmp_path: Path):
     assert '"metadata"' in result.output
     assert '"total_files"' in result.output
     assert '"python_files"' in result.output
+
+
+def test_explicit_json_format(tmp_path: Path):
+    result = runner.invoke(app, ["audit", str(tmp_path), "--format", "json"])
+    assert result.exit_code == 0
+    import json as _json
+
+    out = _json.loads(result.output)
+    assert out.get("status") == "ok"
+
+
+def test_markdown_format_outputs_markdown(tmp_path: Path):
+    result = runner.invoke(app, ["audit", str(tmp_path), "--format", "markdown"])
+    assert result.exit_code == 0
+    out = result.output
+    assert "# DrRepo Audit Report" in out
+    assert "## Repository" in out
+    assert "## Score Summary" in out
+    assert "## Analyzer Summary" in out
+    # Ensure output is not JSON
+    assert "{\n  \"status\"" not in out
+
+
+def test_invalid_format_fails(tmp_path: Path):
+    result = runner.invoke(app, ["audit", str(tmp_path), "--format", "xml"])
+    assert result.exit_code != 0
+    assert "Invalid format" in result.output or "must be 'json' or 'markdown'" in result.output
 
 
 def test_audit_missing_path():

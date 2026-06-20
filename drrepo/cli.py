@@ -15,6 +15,7 @@ from drrepo.analyzers.service import run_static_analyzers, static_analyzers_to_d
 from drrepo.analyzers.test_service import run_test_analyzers, test_analyzers_to_dict
 from drrepo.analyzers.repository_service import run_repository_analyzers, repository_analyzers_to_dict
 from drrepo.scoring import score_audit_sections
+from drrepo.reports.markdown_report import render_markdown_report
 
 
 app = typer.Typer(help="DrRepo - repository audit tool (minimal)")
@@ -26,7 +27,10 @@ def main() -> None:
 
 
 @app.command()
-def audit(path: Path = typer.Argument(..., help="Path to local repository")) -> None:
+def audit(
+    path: Path = typer.Argument(..., help="Path to local repository"),
+    output_format: str = typer.Option("json", "--format", help="Output format: json or markdown"),
+) -> None:
     """Run a lightweight audit placeholder against a local path."""
     try:
         resolved_path = resolve_local_path(path)
@@ -55,7 +59,15 @@ def audit(path: Path = typer.Argument(..., help="Path to local repository")) -> 
     scanned["repository_analysis"] = repository_analyzers_to_dict(repo_results)
     scanned["scoring"] = scoring
 
-    typer.echo(json.dumps(scanned, indent=2))
+    fmt = (output_format or "json").lower()
+    if fmt not in ("json", "markdown"):
+        raise typer.BadParameter("Invalid format: must be 'json' or 'markdown'")
+
+    if fmt == "json":
+        typer.echo(json.dumps(scanned, indent=2))
+    else:
+        md = render_markdown_report(scanned)
+        typer.echo(md)
 
 
 if __name__ == "__main__":
