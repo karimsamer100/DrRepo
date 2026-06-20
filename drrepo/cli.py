@@ -13,6 +13,7 @@ from drrepo.input.resolver import resolve_local_path
 from drrepo.scanner.repository_scanner import scan_repository
 from drrepo.analyzers.service import run_static_analyzers, static_analyzers_to_dict
 from drrepo.analyzers.test_service import run_test_analyzers, test_analyzers_to_dict
+from drrepo.analyzers.repository_service import run_repository_analyzers, repository_analyzers_to_dict
 
 
 app = typer.Typer(help="DrRepo - repository audit tool (minimal)")
@@ -43,6 +44,9 @@ def audit(path: Path = typer.Argument(..., help="Path to local repository")) -> 
     # Run test analyzers (pytest)
     test_results = run_test_analyzers(scanned["path"])
     scanned["test_analysis"] = test_analyzers_to_dict(test_results)
+    # Run repository analyzers (readme, structure)
+    repo_results = run_repository_analyzers(scanned["path"])
+    scanned["repository_analysis"] = repository_analyzers_to_dict(repo_results)
 
     typer.echo(json.dumps(scanned, indent=2))
 
