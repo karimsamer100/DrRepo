@@ -108,6 +108,41 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
     _render_section_table("test_analysis")
     _render_section_table("repository_analysis")
 
+    # Prioritized Action Plan (Remediation Suggestions)
+    lines.append("")
+    lines.append("## Prioritized Action Plan")
+    suggestions = _safe_get(audit, "remediation_suggestions", []) or []
+    summary = _safe_get(audit, "remediation_summary", {}) or {}
+
+    def _escape_cell(text: str) -> str:
+        return text.replace("|", "\\|") if isinstance(text, str) else str(text)
+
+    if suggestions and isinstance(suggestions, list):
+        # Optional summary lines
+        total = summary.get("total") if isinstance(summary, dict) else None
+        if isinstance(total, int):
+            lines.append(f"Total suggestions: {total}")
+        by_sev = summary.get("by_severity") if isinstance(summary, dict) else None
+        if isinstance(by_sev, dict) and by_sev:
+            # deterministic order by key
+            parts = [f"{k}={by_sev[k]}" for k in sorted(by_sev.keys())]
+            lines.append(f"By severity: {', '.join(parts)}")
+
+        lines.append("")
+        lines.append("| Severity | Section | Tool | Title | Action |")
+        lines.append("|---|---|---|---|---|")
+        for s in suggestions:
+            if not isinstance(s, dict):
+                continue
+            sev = s.get("severity") or "unknown"
+            sec = s.get("section") or "unknown"
+            tool = s.get("tool") or "unknown"
+            title = _escape_cell(s.get("title") or "")
+            action = _escape_cell(s.get("action") or "")
+            lines.append(f"| {sev} | {sec} | {tool} | {title} | {action} |")
+    else:
+        lines.append("No remediation suggestions generated.")
+
     # Findings
     lines.append("")
     lines.append("## Findings")

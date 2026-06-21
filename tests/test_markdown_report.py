@@ -82,3 +82,38 @@ def test_missing_keys_do_not_crash():
     assert isinstance(md, str)
     assert len(md) > 0
     assert "N/A" in md or "No findings reported." in md
+
+
+def test_prioritized_action_plan_rendering_and_summary():
+    audit = {
+        "remediation_suggestions": [
+            {"section": "static_analysis", "tool": "ruff", "severity": "low", "title": "Install ruff", "action": "pip install ruff"}
+        ],
+        "remediation_summary": {"total": 1, "by_severity": {"low": 1}},
+    }
+    md = render_markdown_report(audit)
+    assert "## Prioritized Action Plan" in md
+    assert "Install ruff" in md
+    assert "pip install ruff" in md
+    assert "Total suggestions: 1" in md
+    assert "By severity: low=1" in md
+
+
+def test_prioritized_action_plan_handles_empty():
+    audit = {"remediation_suggestions": [], "remediation_summary": {"total": 0}}
+    md = render_markdown_report(audit)
+    assert "## Prioritized Action Plan" in md
+    assert "No remediation suggestions generated." in md
+
+
+def test_prioritized_action_plan_escapes_pipes():
+    audit = {
+        "remediation_suggestions": [
+            {"section": "test_analysis", "tool": "pytest", "severity": "high", "title": "Fix A | B", "action": "Do X | Y"}
+        ],
+        "remediation_summary": {"total": 1, "by_severity": {"high": 1}},
+    }
+    md = render_markdown_report(audit)
+    # ensure pipe characters are escaped in the table cells
+    assert "Fix A \\| B" in md or "Fix A \\|" in md
+    assert "Do X \\| Y" in md or "Do X \\|" in md
