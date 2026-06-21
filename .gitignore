@@ -4,3 +4,16 @@ __pycache__/
 *.egg-info/
 .venv/
 venv/
+
+# Build / test artifacts
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+tmp/
+reports/
+
+# Env files
+.env
