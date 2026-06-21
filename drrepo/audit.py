@@ -15,6 +15,7 @@ from drrepo.analyzers.repository_service import (
     repository_analyzers_to_dict,
 )
 from drrepo.scoring import score_audit_sections
+from drrepo.remediation.suggestions import generate_suggestions, count_suggestions_by_severity
 
 
 def build_audit(path: str | Path) -> Dict[str, Any]:
@@ -40,5 +41,13 @@ def build_audit(path: str | Path) -> Dict[str, Any]:
     scanned["test_analysis"] = test_analyzers_to_dict(test_results)
     scanned["repository_analysis"] = repository_analyzers_to_dict(repo_results)
     scanned["scoring"] = scoring
+
+    # Generate remediation suggestions after analyzers and scoring are attached
+    remediation = generate_suggestions(scanned)
+    scanned["remediation_suggestions"] = remediation
+    scanned["remediation_summary"] = {
+        "total": len(remediation),
+        "by_severity": count_suggestions_by_severity(remediation),
+    }
 
     return scanned

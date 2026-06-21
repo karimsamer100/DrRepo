@@ -20,6 +20,9 @@ def test_build_audit_top_level_keys(monkeypatch, tmp_path: Path):
     assert "test_analysis" in result
     assert "repository_analysis" in result
     assert "scoring" in result
+    # remediation keys added by Remediation Batch 2
+    assert "remediation_suggestions" in result
+    assert "remediation_summary" in result
 
 
 def test_build_audit_passes_detected_root(monkeypatch, tmp_path: Path):
@@ -85,3 +88,27 @@ def test_build_audit_invalid_path_raises():
 
     with pytest.raises(FileNotFoundError):
         build_audit("no/such/path")
+
+
+def test_build_audit_includes_remediation_from_analyzers(monkeypatch, tmp_path: Path):
+    # static analyzer returns not_available -> should produce TOOL-NOT-AVAILABLE suggestion
+    monkeypatch.setattr("drrepo.audit.run_static_analyzers", lambda p: [ToolResult(tool="ruff", status="not_available", errors=["missing"])])
+    monkeypatch.setattr("drrepo.audit.run_test_analyzers", lambda p: [ToolResult(tool="pytest", status="completed")])
+    monkeypatch.setattr("drrepo.audit.run_repository_analyzers", lambda p: [ToolResult(tool="readme", status="completed")])
+
+    out = build_audit(tmp_path)
+    suggs = out.get("remediation_suggestions") or []
+    assert isinstance(suggs, list)
+    assert any(s.get("code") == "TOOL-NOT-AVAILABLE" and "Install optional tool" in s.get("title", "") for s in suggs)
+
+
+def test_remediation_summary_counts_severity(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr("drrepo.audit.run_static_analyzers", lambda p: [ToolResult(tool="ruff", status="not_available", errors=["missing"])])
+    monkeypatch.setattr("drrepo.audit.run_test_analyzers", lambda p: [ToolResult(tool="pytest", status="completed")])
+    monkeypatch.setattr("drrepo.audit.run_repository_analyzers", lambda p: [ToolResult(tool="readme", status="completed")])
+
+    out = build_audit(tmp_path)
+    summary = out.get("remediation_summary") or {}
+    by_sev = summary.get("by_severity") or {}
+    # not_available -> low severity suggestions
+    assert by_sev.get("low", 0) >= 1
