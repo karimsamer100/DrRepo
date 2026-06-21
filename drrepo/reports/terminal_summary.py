@@ -22,6 +22,13 @@ def render_terminal_summary(audit: Dict[str, Any]) -> str:
 
     lines.append(f"Path: {path}")
     lines.append(f"Overall score: {overall}")
+    # Repository & portfolio scores
+    repo_health_score = _safe_get(scoring, "repository_health_score")
+    port_ready_score = _safe_get(scoring, "portfolio_readiness_score")
+    if repo_health_score is not None:
+        lines.append(f"Repository health score: {repo_health_score}")
+    if port_ready_score is not None:
+        lines.append(f"Portfolio readiness score: {port_ready_score}")
     lines.append(f"Diagnosis: {label}")
     lines.append(f"Summary: {summary}")
     lines.append("")
@@ -61,6 +68,14 @@ def render_terminal_summary(audit: Dict[str, Any]) -> str:
             lines.append(f"{idx}. [{sev}] {title} — {action}")
     else:
         lines.append("None")
+
+    # Category scores compact block
+    cats = _safe_get(scoring, "categories", {}) or {}
+    if cats:
+        lines.append("")
+        lines.append("Category scores:")
+        for cat in ("code_quality", "testing", "security", "maintainability", "documentation", "structure"):
+            lines.append(f"- {cat}: {cats.get(cat, 'N/A')}")
 
     # Analyzer statuses
     def _format_section(sec_name: str) -> str:

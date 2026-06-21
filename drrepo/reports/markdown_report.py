@@ -56,11 +56,30 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
     scoring = _safe_get(audit, "scoring", {}) or {}
     overall = _safe_get(scoring, "overall_score", "N/A")
     lines.append(f"- **Overall score**: {overall}")
+    # Repository and portfolio scores (Phase 4 category scores)
+    repo_health = _safe_get(scoring, "repository_health_score")
+    port_ready = _safe_get(scoring, "portfolio_readiness_score")
+    if repo_health is not None:
+        lines.append(f"- **Repository health score**: {repo_health}")
+    if port_ready is not None:
+        lines.append(f"- **Portfolio readiness score**: {port_ready}")
     sections = _safe_get(scoring, "sections", {}) or {}
     for sec in ("static_analysis", "test_analysis", "repository_analysis"):
         secscore = _safe_get(sections, sec, {})
         s = _safe_get(secscore, "score", "N/A")
         lines.append(f"- **{sec}**: {s}")
+
+    # Category scores
+    cats = _safe_get(scoring, "categories", {}) or {}
+    if cats:
+        lines.append("")
+        lines.append("### Category scores")
+        lines.append("")
+        lines.append("| Category | Score |")
+        lines.append("|---|---:|")
+        for cat in ("code_quality", "testing", "security", "maintainability", "documentation", "structure"):
+            val = cats.get(cat, "N/A")
+            lines.append(f"| {cat} | {val} |")
 
     # Diagnosis
     lines.append("")

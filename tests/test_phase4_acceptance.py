@@ -27,6 +27,10 @@ def test_build_audit_on_sample_good_repo():
 
     scoring = audit.get("scoring", {})
     assert "overall_score" in scoring or "overall" in scoring
+    # Phase 4 category scores
+    assert "categories" in scoring
+    assert "repository_health_score" in scoring
+    assert "portfolio_readiness_score" in scoring
 
     assert "repository_health" in audit.get("diagnosis", {})
     assert isinstance(audit.get("remediation_suggestions", []), list)

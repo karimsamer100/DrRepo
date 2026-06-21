@@ -64,6 +64,85 @@ def score_audit_sections(
         "repository_analysis": repo_score,
     }
 
-    # average of the three section scores
+    # category mapping to tool names
+    category_tool_map = {
+        "code_quality": ["ruff"],
+        "security": ["bandit"],
+        "maintainability": ["radon"],
+        "testing": ["pytest", "coverage"],
+        "documentation": ["readme"],
+        "structure": ["structure"],
+    }
+
+    # helper to collect tool results for given tool names from all sections
+    def _collect_tools(names: List[str]):
+        out: List[ToolResult] = []
+        all_results = list(static_analysis) + list(test_analysis) + list(repository_analysis)
+        for r in all_results:
+            if r.tool in names:
+                out.append(r)
+        return out
+
+    categories: Dict[str, Any] = {}
+    category_reasons: Dict[str, List[Dict[str, Any]]] = {}
+    for cat, tools in category_tool_map.items():
+        results = _collect_tools(tools)
+        if results:
+            scored = score_tool_results(results)
+            categories[cat] = scored["score"]
+            reasons: List[Dict[str, Any]] = []
+            for r in results:
+                for f in (r.findings or []):
+                    reasons.append(
+                        {
+                            "tool": r.tool,
+                            "code": f.code,
+                            "severity": f.severity,
+                            "message": f.message,
+                        }
+                    )
+            category_reasons[cat] = reasons
+        else:
+            # missing evidence -> perfect score but empty reasons
+            categories[cat] = 100
+            category_reasons[cat] = []
+
+    # compute repository health and portfolio readiness using weighted averages
+    def _weighted_score(weights: Dict[str, float]) -> int:
+        total = 0.0
+        for k, w in weights.items():
+            total += categories.get(k, 100) * w
+        return int(round(total))
+
+    repo_weights = {
+        "code_quality": 0.20,
+        "testing": 0.20,
+        "security": 0.20,
+        "documentation": 0.15,
+        "structure": 0.15,
+        "maintainability": 0.10,
+    }
+
+    portfolio_weights = {
+        "documentation": 0.30,
+        "structure": 0.20,
+        "testing": 0.15,
+        "code_quality": 0.15,
+        "security": 0.10,
+        "maintainability": 0.10,
+    }
+
+    repository_health_score = _weighted_score(repo_weights)
+    portfolio_readiness_score = _weighted_score(portfolio_weights)
+
+    # average of the three section scores (preserve existing overall behavior)
     avg = round((static_score["score"] + test_score["score"] + repo_score["score"]) / 3.0)
-    return {"overall_score": int(avg), "sections": sec_scores}
+
+    return {
+        "overall_score": int(avg),
+        "sections": sec_scores,
+        "categories": categories,
+        "category_reasons": category_reasons,
+        "repository_health_score": repository_health_score,
+        "portfolio_readiness_score": portfolio_readiness_score,
+    }
