@@ -21,6 +21,7 @@ def test_build_audit_top_level_keys(monkeypatch, tmp_path: Path):
     assert "repository_analysis" in result
     assert "scoring" in result
     # remediation keys added by Remediation Batch 2
+    assert "diagnosis" in result
     assert "remediation_suggestions" in result
     assert "remediation_summary" in result
 

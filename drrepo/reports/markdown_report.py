@@ -62,6 +62,22 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
         s = _safe_get(secscore, "score", "N/A")
         lines.append(f"- **{sec}**: {s}")
 
+    # Diagnosis
+    lines.append("")
+    lines.append("## Diagnosis")
+    diagnosis = _safe_get(audit, "diagnosis", {}) or {}
+    repo_health = _safe_get(diagnosis, "repository_health", {}) or {}
+    label = _safe_get(repo_health, "label", "N/A")
+    score_val = _safe_get(repo_health, "score", "N/A")
+    summary_text = _safe_get(repo_health, "summary", "N/A")
+    hard_flags = _safe_get(diagnosis, "hard_flags", []) or []
+    limitations = _safe_get(diagnosis, "limitations", []) or []
+
+    lines.append(f"- Label: {label}")
+    lines.append(f"- Summary: {summary_text}")
+    lines.append(f"- Hard flags: {', '.join(hard_flags) if hard_flags else 'None'}")
+    lines.append(f"- Limitations: {', '.join(limitations) if limitations else 'None'}")
+
     # Metadata Summary
     lines.append("")
     lines.append("## Metadata Summary")
