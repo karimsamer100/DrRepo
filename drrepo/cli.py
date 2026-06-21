@@ -12,6 +12,12 @@ import typer
 from drrepo.audit import build_audit
 from drrepo.reports.markdown_report import render_markdown_report
 from drrepo.reports.terminal_summary import render_terminal_summary
+from drrepo.input.git import is_public_github_repo_url
+from drrepo.input.workspace import (
+    create_temp_workspace,
+    cleanup_workspace,
+    clone_public_github_repo,
+)
 
 
 app = typer.Typer(help="DrRepo - repository audit tool (minimal)")
@@ -24,17 +30,48 @@ def main() -> None:
 
 @app.command()
 def audit(
-    path: Path = typer.Argument(..., help="Path to local repository"),
+    path: str = typer.Argument(..., help="Path to local repository or GitHub repo URL"),
     output_format: str = typer.Option("json", "--format", help="Output format: json or markdown"),
     output: Path | None = typer.Option(None, "--output", help="Optional output file path to write report to"),
 ) -> None:
-    """Run a lightweight audit placeholder against a local path."""
+    """Run a lightweight audit against a local path or a public GitHub repository URL."""
+    workspace = None
+    is_url = isinstance(path, str) and (
+        path.startswith("https://github.com/") or path.startswith("http://github.com/") or path.startswith("git@github.com:")
+    )
+
+    # If it looks like a GitHub URL, validate it strictly
+    if is_url and not is_public_github_repo_url(path):
+        raise typer.BadParameter("Invalid GitHub repository URL.")
+
     try:
-        audit_result = build_audit(path)
-    except FileNotFoundError as exc:
-        raise typer.BadParameter(str(exc)) from exc
-    except NotADirectoryError as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        if is_public_github_repo_url(path):
+            # GitHub URL flow
+            try:
+                workspace = create_temp_workspace()
+                repo_path = clone_public_github_repo(path, workspace)
+            except (RuntimeError, FileExistsError, ValueError) as exc:
+                # Ensure cleanup happens in finally
+                raise typer.BadParameter(str(exc)) from exc
+
+            audit_result = build_audit(repo_path)
+            # annotate source for URL audits
+            audit_result["source"] = {"type": "github_url", "value": path}
+        else:
+            # Local path flow
+            try:
+                audit_result = build_audit(Path(path))
+            except FileNotFoundError as exc:
+                raise typer.BadParameter(str(exc)) from exc
+            except NotADirectoryError as exc:
+                raise typer.BadParameter(str(exc)) from exc
+    finally:
+        if workspace is not None:
+            try:
+                cleanup_workspace(workspace)
+            except Exception:
+                # Do not mask original exceptions; typer will report failure
+                pass
 
     fmt = (output_format or "json").lower()
     if fmt not in ("json", "markdown", "summary"):
