@@ -58,7 +58,7 @@ def test_markdown_format_outputs_markdown(tmp_path: Path):
 def test_invalid_format_fails(tmp_path: Path):
     result = runner.invoke(app, ["audit", str(tmp_path), "--format", "xml"])
     assert result.exit_code != 0
-    assert "Invalid format" in result.output or "must be 'json' or 'markdown'" in result.output
+    assert "Invalid format" in result.output or "must be 'json'" in result.output
 
 
 def test_output_file_json(tmp_path: Path):
@@ -140,6 +140,27 @@ def test_audit_includes_static_analysis(monkeypatch, tmp_path: Path):
     assert out["scoring"]["sections"]["static_analysis"]["score"] == 100
     assert out["scoring"]["sections"]["test_analysis"]["score"] == 85
     assert out["scoring"]["sections"]["repository_analysis"]["score"] == 97
+
+
+def test_summary_format_outputs_summary(tmp_path: Path):
+    result = runner.invoke(app, ["audit", str(tmp_path), "--format", "summary"])
+    assert result.exit_code == 0
+    out = result.output
+    assert "DrRepo Audit Summary" in out
+    assert "Overall score" in out
+
+
+def test_output_file_summary_and_parent_created(tmp_path: Path):
+    nested = tmp_path / "a" / "b"
+    out_file = nested / "audit.txt"
+    result = runner.invoke(app, ["audit", str(tmp_path), "--format", "summary", "--output", str(out_file)])
+    assert result.exit_code == 0
+    assert "Wrote audit report to" in result.output
+    assert out_file.exists()
+    content = out_file.read_text(encoding="utf-8")
+    assert "DrRepo Audit Summary" in content
+    # stdout should not contain the full summary
+    assert "DrRepo Audit Summary" not in result.output
 
 
 def test_cli_passes_detected_root_to_analyzers(monkeypatch, tmp_path: Path):

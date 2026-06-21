@@ -11,6 +11,7 @@ import typer
 
 from drrepo.audit import build_audit
 from drrepo.reports.markdown_report import render_markdown_report
+from drrepo.reports.terminal_summary import render_terminal_summary
 
 
 app = typer.Typer(help="DrRepo - repository audit tool (minimal)")
@@ -36,14 +37,16 @@ def audit(
         raise typer.BadParameter(str(exc)) from exc
 
     fmt = (output_format or "json").lower()
-    if fmt not in ("json", "markdown"):
-        raise typer.BadParameter("Invalid format: must be 'json' or 'markdown'")
+    if fmt not in ("json", "markdown", "summary"):
+        raise typer.BadParameter("Invalid format: must be 'json', 'markdown', or 'summary'")
 
     # Build the formatted string
     if fmt == "json":
         formatted = json.dumps(audit_result, indent=2)
-    else:
+    elif fmt == "markdown":
         formatted = render_markdown_report(audit_result)
+    else:
+        formatted = render_terminal_summary(audit_result)
 
     if output:
         out_path = Path(output)
