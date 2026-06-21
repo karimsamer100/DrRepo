@@ -44,13 +44,17 @@ def normalize_github_repo_url(value: Any) -> str:
     m = _HTTPS_RE.match(v)
     if m:
         owner, repo = m.group(1), m.group(2)
-        repo = repo.rstrip(".git")
+        # remove the exact suffix ".git" only (don't use rstrip)
+        if repo.endswith(".git"):
+            repo = repo[:-4]
         return f"https://github.com/{owner}/{repo}.git"
 
     m2 = _SSH_RE.match(v)
     if m2:
         owner, repo = m2.group(1), m2.group(2)
-        repo = repo.rstrip(".git")
+        # remove the exact suffix ".git" only (don't use rstrip)
+        if repo.endswith(".git"):
+            repo = repo[:-4]
         return f"https://github.com/{owner}/{repo}.git"
 
     raise ValueError(f"Invalid or unsupported GitHub repository URL: {value}")

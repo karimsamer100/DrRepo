@@ -45,3 +45,14 @@ def test_normalize_ssh():
 def test_normalize_invalid_raises():
     with pytest.raises(ValueError):
         normalize_github_repo_url("https://github.com/owner/repo/issues/1")
+
+
+def test_normalize_regressions():
+    # regression: sampleproject name ending with 't' should not be truncated
+    assert normalize_github_repo_url("https://github.com/pypa/sampleproject") == "https://github.com/pypa/sampleproject.git"
+    assert normalize_github_repo_url("https://github.com/owner/project") == "https://github.com/owner/project.git"
+    assert normalize_github_repo_url("https://github.com/owner/git") == "https://github.com/owner/git.git"
+    # already-suffixed should remain unchanged
+    assert normalize_github_repo_url("https://github.com/owner/repo.git") == "https://github.com/owner/repo.git"
+    # ssh form
+    assert normalize_github_repo_url("git@github.com:owner/project.git") == "https://github.com/owner/project.git"
