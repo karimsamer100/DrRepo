@@ -31,6 +31,10 @@ __all__ += [
     "DATASET_ARTIFACT_VERSION",
 ]
 
+from .audit_dataset import load_audit_json, build_dataset_records_from_audit_files, export_dataset_from_audit_files
+
+__all__ += ["load_audit_json", "build_dataset_records_from_audit_files", "export_dataset_from_audit_files"]
+
 from .dataset_builder import build_dataset_records, validate_dataset
 from .splits import assign_split, split_dataset, DEFAULT_SPLIT_RATIOS
 from .baseline import predict_record_baseline, predict_repository_readiness_baseline, predict_portfolio_readiness_baseline
