@@ -34,6 +34,27 @@ __all__ += [
 from .audit_dataset import load_audit_json, build_dataset_records_from_audit_files, export_dataset_from_audit_files
 
 __all__ += ["load_audit_json", "build_dataset_records_from_audit_files", "export_dataset_from_audit_files"]
+from .training_data import (
+    REPOSITORY_LABEL_FIELD,
+    PORTFOLIO_LABEL_FIELD,
+    get_ordered_feature_names,
+    extract_feature_matrix,
+    extract_labels,
+    filter_labeled_records,
+    prepare_supervised_dataset,
+    prepare_split_supervised_datasets,
+)
+
+__all__ += [
+    "REPOSITORY_LABEL_FIELD",
+    "PORTFOLIO_LABEL_FIELD",
+    "get_ordered_feature_names",
+    "extract_feature_matrix",
+    "extract_labels",
+    "filter_labeled_records",
+    "prepare_supervised_dataset",
+    "prepare_split_supervised_datasets",
+]
 
 from .dataset_builder import build_dataset_records, validate_dataset
 from .splits import assign_split, split_dataset, DEFAULT_SPLIT_RATIOS
