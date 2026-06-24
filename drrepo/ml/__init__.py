@@ -19,3 +19,18 @@ __all__ = [
     "write_jsonl",
     "read_jsonl",
 ]
+
+from .dataset_builder import build_dataset_records, validate_dataset
+from .splits import assign_split, split_dataset, DEFAULT_SPLIT_RATIOS
+from .baseline import predict_record_baseline, predict_repository_readiness_baseline, predict_portfolio_readiness_baseline
+
+__all__ += [
+    "build_dataset_records",
+    "validate_dataset",
+    "assign_split",
+    "split_dataset",
+    "DEFAULT_SPLIT_RATIOS",
+    "predict_record_baseline",
+    "predict_repository_readiness_baseline",
+    "predict_portfolio_readiness_baseline",
+]
