@@ -20,6 +20,17 @@ __all__ = [
     "read_jsonl",
 ]
 
+from .quality import build_dataset_quality_report, summarize_label_counts
+from .artifacts import build_dataset_artifact_manifest, validate_dataset_artifact_manifest, DATASET_ARTIFACT_VERSION
+
+__all__ += [
+    "build_dataset_quality_report",
+    "summarize_label_counts",
+    "build_dataset_artifact_manifest",
+    "validate_dataset_artifact_manifest",
+    "DATASET_ARTIFACT_VERSION",
+]
+
 from .dataset_builder import build_dataset_records, validate_dataset
 from .splits import assign_split, split_dataset, DEFAULT_SPLIT_RATIOS
 from .baseline import predict_record_baseline, predict_repository_readiness_baseline, predict_portfolio_readiness_baseline
