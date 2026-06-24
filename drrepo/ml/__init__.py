@@ -55,6 +55,23 @@ __all__ += [
     "prepare_supervised_dataset",
     "prepare_split_supervised_datasets",
 ]
+from .evaluation import (
+    EVALUATION_REPORT_VERSION,
+    confusion_matrix,
+    classification_metrics,
+    evaluate_repository_baseline,
+    evaluate_portfolio_baseline,
+    evaluate_split_baselines,
+)
+
+__all__ += [
+    "EVALUATION_REPORT_VERSION",
+    "confusion_matrix",
+    "classification_metrics",
+    "evaluate_repository_baseline",
+    "evaluate_portfolio_baseline",
+    "evaluate_split_baselines",
+]
 
 from .dataset_builder import build_dataset_records, validate_dataset
 from .splits import assign_split, split_dataset, DEFAULT_SPLIT_RATIOS
