@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
-from typing import Any
+
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional dependency
+    load_dotenv = None
 
 LLM_PROVIDER_INTERFACE_VERSION = "v1"
 
@@ -9,11 +14,14 @@ DEFAULT_PROVIDER_ORDER = [
     "gemini",
     "groq",
     "cerebras",
-    "openrouter",
     "deterministic_fallback",
 ]
 
 SUPPORTED_PROVIDER_IDS = set(DEFAULT_PROVIDER_ORDER)
+
+
+if load_dotenv is not None:
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"), override=False)
 
 
 @dataclass
@@ -55,8 +63,8 @@ def build_provider_metadata(provider_id: str) -> dict[str, object]:
         return {
             "provider_id": provider_id,
             "display_name": "Groq",
-            "model": "gpt-oss-120b",
-            "role": "primary",
+            "model": "openai/gpt-oss-120b",
+            "role": "fallback",
             "api_key_env": "GROQ_API_KEY",
             "supports_structured_output": True,
             "notes": ["Free-tier/API-key-based usage may have rate limits and model availability limits."],
@@ -70,16 +78,6 @@ def build_provider_metadata(provider_id: str) -> dict[str, object]:
             "api_key_env": "CEREBRAS_API_KEY",
             "supports_structured_output": True,
             "notes": ["Free-tier/API-key-based usage may have rate limits and model availability limits."],
-        }
-    if provider_id == "openrouter":
-        return {
-            "provider_id": provider_id,
-            "display_name": "OpenRouter",
-            "model": "openai/gpt-oss-120b:free",
-            "role": "fallback",
-            "api_key_env": "OPENROUTER_API_KEY",
-            "supports_structured_output": True,
-            "notes": ["Model availability and free-tier eligibility can vary by account and region."],
         }
     return {
         "provider_id": provider_id,

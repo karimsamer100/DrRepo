@@ -5,10 +5,19 @@ import os
 from typing import Any
 from urllib import error, request
 
+try:
+    from dotenv import load_dotenv
+except ImportError:  # pragma: no cover - optional dependency
+    load_dotenv = None
+
 from .llm_contract import validate_llm_advisor_response
 from .llm_providers import LLMProviderResult
 
 LLM_HTTP_ADAPTER_VERSION = "v1"
+
+
+if load_dotenv is not None:
+    load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"), override=False)
 
 
 def _build_request_payload(prompt_bundle: dict[str, object], provider_id: str) -> dict[str, object]:
@@ -83,7 +92,7 @@ def call_gemini_advisor(
     api_key: str | None = None,
     transport: callable | None = None,
 ) -> LLMProviderResult:
-    resolved_key = api_key or os.getenv("GEMINI_API_KEY")
+    resolved_key = api_key if api_key is not None else os.getenv("GEMINI_API_KEY")
     return _call_provider("gemini", resolved_key, "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent", transport, prompt_bundle)
 
 
@@ -92,7 +101,7 @@ def call_groq_advisor(
     api_key: str | None = None,
     transport: callable | None = None,
 ) -> LLMProviderResult:
-    resolved_key = api_key or os.getenv("GROQ_API_KEY")
+    resolved_key = api_key if api_key is not None else os.getenv("GROQ_API_KEY")
     return _call_provider("groq", resolved_key, "https://api.groq.com/openai/v1/chat/completions", transport, prompt_bundle)
 
 
@@ -101,7 +110,7 @@ def call_cerebras_advisor(
     api_key: str | None = None,
     transport: callable | None = None,
 ) -> LLMProviderResult:
-    resolved_key = api_key or os.getenv("CEREBRAS_API_KEY")
+    resolved_key = api_key if api_key is not None else os.getenv("CEREBRAS_API_KEY")
     return _call_provider("cerebras", resolved_key, "https://api.cerebras.ai/v1/chat/completions", transport, prompt_bundle)
 
 
@@ -110,7 +119,7 @@ def call_openrouter_advisor(
     api_key: str | None = None,
     transport: callable | None = None,
 ) -> LLMProviderResult:
-    resolved_key = api_key or os.getenv("OPENROUTER_API_KEY")
+    resolved_key = api_key if api_key is not None else os.getenv("OPENROUTER_API_KEY")
     return _call_provider("openrouter", resolved_key, "https://openrouter.ai/api/v1/chat/completions", transport, prompt_bundle)
 
 

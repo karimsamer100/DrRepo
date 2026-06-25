@@ -70,12 +70,20 @@ def route_llm_advisor_response(
                 }
 
     fallback_result = build_deterministic_provider(fallback_copy)(prompt_copy, fallback_copy)
+    fallback_advisor = deepcopy(fallback_copy) if isinstance(fallback_copy, dict) else {}
+    if not isinstance(fallback_advisor.get("limitations"), list):
+        fallback_advisor["limitations"] = []
+    fallback_advisor.setdefault("limitations", [])
+    fallback_advisor["limitations"] = list(fallback_advisor["limitations"])
+    fallback_advisor["limitations"].append("AI advice is temporarily unavailable; the deterministic audit report is being used instead.")
+    if not fallback_advisor.get("next_steps"):
+        fallback_advisor["next_steps"] = ["Retry the AI-assisted advisor once provider access is available."]
     return {
         "router_version": LLM_ROUTER_VERSION,
         "selected_provider_id": fallback_result.provider_id,
         "used_fallback": True,
         "provider_attempts": attempts + [{"provider_id": fallback_result.provider_id, "status": fallback_result.status}],
-        "advisor_response": fallback_copy,
+        "advisor_response": fallback_advisor,
         "validation_errors": [],
     }
 

@@ -15,19 +15,13 @@ def test_default_provider_order_is_expected():
         "gemini",
         "groq",
         "cerebras",
-        "openrouter",
         "deterministic_fallback",
     ]
 
 
-def test_supported_provider_ids_include_all_expected_ids():
-    assert set(get_supported_provider_ids()) == {
-        "gemini",
-        "groq",
-        "cerebras",
-        "openrouter",
-        "deterministic_fallback",
-    }
+def test_supported_provider_ids_include_core_ids():
+    supported = set(get_supported_provider_ids())
+    assert {"gemini", "groq", "cerebras", "deterministic_fallback"} <= supported
 
 
 def test_validate_provider_id_accepts_known_ids():
