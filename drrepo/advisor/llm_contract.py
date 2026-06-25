@@ -101,8 +101,38 @@ def _missing_evidence_notes(plan: Dict[str, Any]) -> List[str]:
     notes = []
     for note in _as_list(plan.get("evidence_notes")):
         if isinstance(note, str) and note.startswith("unavailable_evidence:"):
-            notes.append(note.replace("unavailable_evidence:", "evidence missing: ", 1))
+            section = note.split(":", 1)[1].strip()
+            notes.append(f"Evidence was unavailable for {section}.")
     return notes
+
+
+def _friendly_limitation_note(item: str) -> str:
+    note = str(item).strip()
+    lowered = note.lower()
+    if "coverage evidence" in lowered:
+        return "Coverage evidence was unavailable, so testing confidence is based on pytest status and repository structure rather than coverage percentage."
+    if "optional tools" in lowered or "tooling" in lowered:
+        return "Some optional tools were unavailable, so lint/security/complexity confidence may be limited."
+    if lowered.startswith("evidence was unavailable for"):
+        return note
+    return note
+
+
+def _build_fallback_summary(profile: Dict[str, Any], top_priorities: List[Dict[str, Any]], lower_priority_items: List[Dict[str, Any]], limitations: List[str]) -> str:
+    profile_id = profile.get("profile_id", "")
+    if profile_id == "student_portfolio":
+        if top_priorities:
+            return "For a student portfolio, the main improvements should focus on presentation, reproducibility, and trust signals."
+        if lower_priority_items:
+            return "For a student portfolio, this repository looks strong from the available evidence. The remaining items are mostly optional audit-completeness improvements."
+        return "For a student portfolio, no urgent profile-specific blockers were identified from the available evidence."
+    if profile_id == "production_service":
+        if top_priorities:
+            return "For a production service, the main findings emphasize security, test confidence, and deployment readiness."
+        if limitations:
+            return "For a production service, the evidence shows no urgent production blockers, but some evidence limitations remain for security and testing confidence."
+        return "For a production service, the current evidence does not show urgent production readiness issues."
+    return "This advisor guidance is grounded in the current audit evidence for the selected profile."
 
 
 def build_llm_advisor_payload(
@@ -267,19 +297,24 @@ def build_fallback_advisor_response(
     top_priorities = [build_action(action) for action in _as_list(plan_copy.get("top_actions")) if isinstance(action, dict)]
     lower_priority_items = [build_action(action) for action in _as_list(plan_copy.get("deprioritized_actions")) if isinstance(action, dict)]
 
-    limitations = _dedupe_strings([str(item) for item in _as_list(plan_copy.get("limitations")) if str(item)] + _missing_evidence_notes(plan_copy))
+    limitations = _dedupe_strings(
+        [_friendly_limitation_note(item) for item in _as_list(plan_copy.get("limitations")) if str(item)]
+        + [_friendly_limitation_note(item) for item in _missing_evidence_notes(plan_copy)]
+    )
 
     next_steps: List[str] = []
     if top_priorities:
         next_steps.append(f"Start with {top_priorities[0]['title']}.")
+    elif lower_priority_items:
+        next_steps.append("Review the lower-priority items if you want a more complete audit environment.")
     else:
-        next_steps.append("Start with the highest-priority profiled action.")
+        next_steps.append("No urgent profile-specific remediation actions were identified from the current evidence.")
     if limitations:
-        next_steps.append("Review the missing evidence before treating the plan as complete.")
-    next_steps.append("Re-run the audit after the first fix lands.")
+        next_steps.append("Consider the evidence limitations before treating the plan as complete.")
+    next_steps.append("Re-run the audit after installing optional tools or making changes.")
 
     return {
-        "summary": f"{profile.get('display_name', 'Repository')} remediation advice grounded in the current audit evidence.",
+        "summary": _build_fallback_summary(profile, top_priorities, lower_priority_items, limitations),
         "profile_context": profile_context,
         "top_priorities": top_priorities,
         "lower_priority_items": lower_priority_items,

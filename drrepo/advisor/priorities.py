@@ -19,6 +19,10 @@ def _normalize_text(value: Any) -> str:
     return ""
 
 
+def _as_list(value: Any) -> List[Any]:
+    return value if isinstance(value, list) else []
+
+
 def _infer_category(suggestion: Dict[str, Any]) -> str:
     title = _normalize_text(suggestion.get("title")).lower()
     message = _normalize_text(suggestion.get("message")).lower()
@@ -192,6 +196,7 @@ def build_profiled_action_plan(audit: Dict[str, Any], profile_id: str = "student
             })
 
     diagnosis = _safe_get(audit_copy, "diagnosis") or {}
+    diagnosis_limitations = [str(item) for item in _as_list(diagnosis.get("limitations")) if str(item)]
     hard_flags = diagnosis.get("hard_flags") if isinstance(diagnosis, dict) else None
     hard_flags = hard_flags or []
     if isinstance(hard_flags, list):
@@ -228,6 +233,9 @@ def build_profiled_action_plan(audit: Dict[str, Any], profile_id: str = "student
     if not evidence_notes:
         evidence_notes.append("evidence:complete")
 
+    limitations = [note for note in evidence_notes if note.startswith("unavailable_evidence")]
+    limitations.extend(diagnosis_limitations)
+
     return {
         "plan_version": PROFILED_PLAN_VERSION,
         "profile": profile,
@@ -235,6 +243,6 @@ def build_profiled_action_plan(audit: Dict[str, Any], profile_id: str = "student
         "top_actions": top_actions,
         "deprioritized_actions": deprioritized_actions,
         "evidence_notes": evidence_notes,
-        "limitations": [note for note in evidence_notes if note.startswith("unavailable_evidence")],
+        "limitations": limitations,
         "max_actions": max_actions,
     }

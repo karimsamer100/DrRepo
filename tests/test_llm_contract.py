@@ -154,3 +154,21 @@ def test_fallback_response_uses_profiled_top_actions():
 def test_fallback_response_includes_limitations():
     response = build_fallback_advisor_response(_sample_plan())
     assert response["limitations"]
+
+
+def test_fallback_response_has_user_friendly_summary_when_no_top_priorities():
+    plan = build_profiled_action_plan(
+        {
+            "remediation_suggestions": [
+                {"title": "Install optional tool: bandit", "message": "Tool missing", "severity": "low", "code": "TOOL-NOT-AVAILABLE", "tool": "bandit"}
+            ],
+            "diagnosis": {"hard_flags": [], "limitations": ["Coverage evidence was unavailable."]},
+            "scoring": {"repository_health_score": 88},
+        },
+        profile_id="student_portfolio",
+    )
+    response = build_fallback_advisor_response(plan)
+    assert "this repository looks strong from the available evidence" in response["summary"].lower()
+    assert "optional audit-completeness improvements" in response["summary"].lower()
+    assert not any("highest-priority" in step.lower() for step in response["next_steps"])
+    assert any("coverage evidence was unavailable" in limitation.lower() for limitation in response["limitations"])

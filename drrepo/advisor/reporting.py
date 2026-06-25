@@ -61,7 +61,7 @@ def format_advisor_markdown_section(
             evidence = ", ".join(_action_evidence(action)) or "no explicit evidence"
             lines.append(f"- {action.get('title', 'Priority')} ({action.get('priority', 'medium')}): {action.get('why_it_matters', '')} Evidence: {evidence}")
     else:
-        lines.append("- No urgent actions were identified from available evidence.")
+        lines.append("- No urgent profile-specific actions were identified from the available evidence.")
 
     lines.append("")
     lines.append("### Lower priority items")
@@ -79,7 +79,7 @@ def format_advisor_markdown_section(
         for item in limitations:
             lines.append(f"- {item}")
     else:
-        lines.append("- No important limitations were reported.")
+        lines.append("- No important evidence limitations were reported.")
 
     lines.append("")
     lines.append("### Next steps")
@@ -87,7 +87,11 @@ def format_advisor_markdown_section(
         for item in next_steps:
             lines.append(f"- {item}")
     else:
-        lines.append("- Review the highest-priority action and re-run the audit after the first fix lands.")
+        if lower_priority_items:
+            lines.append("- Review the lower-priority items if you want a more complete audit environment.")
+        else:
+            lines.append("- No profile-specific remediation actions were identified from the current evidence.")
+        lines.append("- Re-run the audit after installing optional tools or making changes.")
 
     return "\n".join(lines)
 
@@ -116,12 +120,18 @@ def format_advisor_summary_lines(
         if not isinstance(action, dict):
             continue
         title = _text(action.get("title"), "Priority")
-        lines.append(f"Top: {title}")
+        lines.append(f"Top advisor action: {title}")
 
-    if lower_priority_items and len(lines) < max_lines:
-        lines.append("Lower priority: present")
+    if not top_priorities and lower_priority_items and len(lines) < max_lines:
+        count = len(lower_priority_items)
+        label = "improvement" if count == 1 else "improvements"
+        lines.append(f"Lower-priority items: {count} optional {label}")
+    elif lower_priority_items and len(lines) < max_lines:
+        count = len(lower_priority_items)
+        label = "item" if count == 1 else "items"
+        lines.append(f"Also lower-priority items: {count} optional {label}")
     if limitations and len(lines) < max_lines:
-        lines.append(f"Limitations: {len(limitations)}")
+        lines.append(f"Evidence limitations: {len(limitations)}")
 
     return lines[:max_lines]
 

@@ -106,6 +106,38 @@ def test_markdown_section_includes_limitations_when_available():
     assert "Coverage evidence was unavailable." in section
 
 
+def test_markdown_section_no_urgent_actions_wording_when_only_lower_priority_items():
+    section = format_advisor_markdown_section(
+        {"profile": {"display_name": "Student Portfolio"}},
+        {"summary": "x", "profile_context": "y", "top_priorities": [], "lower_priority_items": [{"title": "Install optional tool", "why_it_matters": "", "evidence": ["bandit"], "suggested_fix": "", "priority": "low"}], "limitations": [], "next_steps": []},
+    )
+    assert "No urgent profile-specific actions were identified from the available evidence." in section
+
+
+def test_summary_lines_use_lower_priority_item_count_instead_of_generic_label():
+    lines = format_advisor_summary_lines(
+        {"profile": {"display_name": "Student Portfolio"}},
+        {"summary": "x", "profile_context": "y", "top_priorities": [], "lower_priority_items": [{"title": "Install optional tool", "why_it_matters": "", "evidence": ["bandit"], "suggested_fix": "", "priority": "low"}], "limitations": [], "next_steps": []},
+    )
+    assert any(line.startswith("Lower-priority items: 1 optional") for line in lines)
+
+
+def test_summary_lines_do_not_include_vague_lower_priority_present():
+    lines = format_advisor_summary_lines(
+        {"profile": {"display_name": "Student Portfolio"}},
+        {"summary": "x", "profile_context": "y", "top_priorities": [], "lower_priority_items": [{"title": "Install optional tool", "why_it_matters": "", "evidence": ["bandit"], "suggested_fix": "", "priority": "low"}], "limitations": [], "next_steps": []},
+    )
+    assert not any("Lower priority: present" in line for line in lines)
+
+
+def test_summary_lines_include_limitations_count_when_available():
+    lines = format_advisor_summary_lines(
+        {"profile": {"display_name": "Student Portfolio"}},
+        {"summary": "x", "profile_context": "y", "top_priorities": [], "lower_priority_items": [], "limitations": ["Coverage evidence was unavailable."], "next_steps": []},
+    )
+    assert any(line.startswith("Evidence limitations:") for line in lines)
+
+
 def test_summary_lines_respect_max_lines():
     lines = format_advisor_summary_lines({"profile": {"display_name": "Student Portfolio"}}, {"summary": "x", "profile_context": "y", "top_priorities": [{"title": "A"}, {"title": "B"}], "lower_priority_items": [], "limitations": [], "next_steps": []}, max_lines=2)
     assert len(lines) <= 2
@@ -117,7 +149,7 @@ def test_summary_lines_return_empty_for_non_positive_max_lines():
 
 def test_empty_no_action_response_is_handled_gracefully():
     section = format_advisor_markdown_section({}, {"summary": "x", "profile_context": "y", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []})
-    assert "No urgent actions were identified" in section
+    assert "No urgent profile-specific actions were identified from the available evidence." in section
 
 
 def test_student_portfolio_report_deprioritizes_low_risk_optional_tooling_when_appropriate():
