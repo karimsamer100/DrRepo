@@ -34,6 +34,11 @@ from .service import (
     ADVISOR_SERVICE_VERSION,
     build_advisor_result,
 )
+from .api_schema import (
+    ADVISOR_API_RESPONSE_VERSION,
+    build_advisor_api_response,
+    validate_advisor_api_response,
+)
 
 __all__ = [
     "PROFILE_VERSION",
@@ -60,4 +65,7 @@ __all__ = [
     "format_advisor_summary_lines",
     "ADVISOR_SERVICE_VERSION",
     "build_advisor_result",
+    "ADVISOR_API_RESPONSE_VERSION",
+    "build_advisor_api_response",
+    "validate_advisor_api_response",
 ]
