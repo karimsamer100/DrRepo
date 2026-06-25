@@ -9,6 +9,9 @@ from pathlib import Path
 
 import typer
 
+from drrepo.advisor.priorities import build_profiled_action_plan
+from drrepo.advisor.reporting import build_deterministic_advisor_report
+from drrepo.advisor.profiles import validate_profile_id
 from drrepo.audit import build_audit
 from drrepo.reports.markdown_report import render_markdown_report
 from drrepo.reports.terminal_summary import render_terminal_summary
@@ -33,6 +36,7 @@ def audit(
     path: str = typer.Argument(..., help="Path to local repository or GitHub repo URL"),
     output_format: str = typer.Option("json", "--format", help="Output format: json or markdown"),
     output: Path | None = typer.Option(None, "--output", help="Optional output file path to write report to"),
+    profile: str | None = typer.Option(None, "--profile", help="Optional advisor profile to include deterministic advisor guidance"),
 ) -> None:
     """Run a lightweight audit against a local path or a public GitHub repository URL."""
     workspace = None
@@ -77,13 +81,28 @@ def audit(
     if fmt not in ("json", "markdown", "summary"):
         raise typer.BadParameter("Invalid format: must be 'json', 'markdown', or 'summary'")
 
+    advisor_report = None
+    if profile is not None:
+        try:
+            validate_profile_id(profile)
+        except ValueError as exc:
+            raise typer.BadParameter(f"Invalid profile: {profile}") from exc
+        advisor_report = build_deterministic_advisor_report(audit_result, profile_id=profile)
+
     # Build the formatted string
     if fmt == "json":
+        if advisor_report is not None:
+            audit_result = dict(audit_result)
+            audit_result["advisor_report"] = advisor_report
         formatted = json.dumps(audit_result, indent=2)
     elif fmt == "markdown":
         formatted = render_markdown_report(audit_result)
+        if advisor_report is not None:
+            formatted = f"{formatted}\n\n{advisor_report['markdown_section']}"
     else:
         formatted = render_terminal_summary(audit_result)
+        if advisor_report is not None:
+            formatted = f"{formatted}\n\nAdvisor summary:\n" + "\n".join(advisor_report["summary_lines"])
 
     if output:
         out_path = Path(output)
