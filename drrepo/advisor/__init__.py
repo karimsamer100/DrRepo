@@ -24,6 +24,12 @@ from .prompting import (
     build_llm_system_prompt,
     build_llm_user_prompt,
 )
+from .reporting import (
+    ADVISOR_REPORT_VERSION,
+    build_deterministic_advisor_report,
+    format_advisor_markdown_section,
+    format_advisor_summary_lines,
+)
 
 __all__ = [
     "PROFILE_VERSION",
@@ -44,4 +50,8 @@ __all__ = [
     "build_llm_prompt_bundle",
     "build_llm_system_prompt",
     "build_llm_user_prompt",
+    "ADVISOR_REPORT_VERSION",
+    "build_deterministic_advisor_report",
+    "format_advisor_markdown_section",
+    "format_advisor_summary_lines",
 ]
