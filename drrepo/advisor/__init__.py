@@ -39,6 +39,29 @@ from .api_schema import (
     build_advisor_api_response,
     validate_advisor_api_response,
 )
+from .llm_providers import (
+    LLM_PROVIDER_INTERFACE_VERSION,
+    LLMProviderResult,
+    build_provider_metadata,
+    get_default_provider_order,
+    get_supported_provider_ids,
+    validate_provider_id,
+)
+from .llm_http import (
+    LLM_HTTP_ADAPTER_VERSION,
+    build_provider_callables_from_environment,
+    call_cerebras_advisor,
+    call_gemini_advisor,
+    call_groq_advisor,
+    call_openrouter_advisor,
+    parse_llm_json_response,
+)
+from .llm_router import (
+    LLM_ROUTER_VERSION,
+    build_default_router_providers_from_environment,
+    build_deterministic_provider,
+    route_llm_advisor_response,
+)
 
 __all__ = [
     "PROFILE_VERSION",
@@ -68,4 +91,21 @@ __all__ = [
     "ADVISOR_API_RESPONSE_VERSION",
     "build_advisor_api_response",
     "validate_advisor_api_response",
+    "LLM_PROVIDER_INTERFACE_VERSION",
+    "LLMProviderResult",
+    "build_provider_metadata",
+    "get_default_provider_order",
+    "get_supported_provider_ids",
+    "validate_provider_id",
+    "LLM_HTTP_ADAPTER_VERSION",
+    "build_provider_callables_from_environment",
+    "call_cerebras_advisor",
+    "call_gemini_advisor",
+    "call_groq_advisor",
+    "call_openrouter_advisor",
+    "parse_llm_json_response",
+    "LLM_ROUTER_VERSION",
+    "build_default_router_providers_from_environment",
+    "build_deterministic_provider",
+    "route_llm_advisor_response",
 ]
