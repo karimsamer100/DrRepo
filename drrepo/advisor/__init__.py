@@ -30,6 +30,10 @@ from .reporting import (
     format_advisor_markdown_section,
     format_advisor_summary_lines,
 )
+from .service import (
+    ADVISOR_SERVICE_VERSION,
+    build_advisor_result,
+)
 
 __all__ = [
     "PROFILE_VERSION",
@@ -54,4 +58,6 @@ __all__ = [
     "build_deterministic_advisor_report",
     "format_advisor_markdown_section",
     "format_advisor_summary_lines",
+    "ADVISOR_SERVICE_VERSION",
+    "build_advisor_result",
 ]
