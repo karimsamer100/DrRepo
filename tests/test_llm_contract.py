@@ -91,6 +91,13 @@ def test_output_schema_includes_required_fields():
     assert schema["required"] == ["summary", "profile_context", "top_priorities", "lower_priority_items", "limitations", "next_steps"]
 
 
+def test_output_schema_requires_full_action_item_fields():
+    schema = get_llm_advisor_output_schema()
+    expected_fields = ["title", "why_it_matters", "evidence", "suggested_fix", "priority"]
+    assert schema["properties"]["top_priorities"]["items"]["required"] == expected_fields
+    assert schema["properties"]["lower_priority_items"]["items"]["required"] == expected_fields
+
+
 def test_validate_llm_advisor_response_accepts_valid_response():
     response = {
         "summary": "Fix the highest-impact issues first.",

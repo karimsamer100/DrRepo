@@ -7,7 +7,7 @@ from urllib import error, request
 
 from drrepo.config import load_repo_dotenv
 
-from .llm_contract import validate_llm_advisor_response
+from .llm_contract import get_llm_advisor_action_schema, validate_llm_advisor_response
 from .llm_providers import LLMProviderResult
 
 load_repo_dotenv()
@@ -57,8 +57,8 @@ def _build_request_payload(
                     "properties": {
                         "summary": {"type": "string"},
                         "profile_context": {"type": "string"},
-                        "top_priorities": {"type": "array", "items": {"type": "object"}},
-                        "lower_priority_items": {"type": "array", "items": {"type": "object"}},
+                        "top_priorities": {"type": "array", "items": get_llm_advisor_action_schema()},
+                        "lower_priority_items": {"type": "array", "items": get_llm_advisor_action_schema()},
                         "limitations": {"type": "array", "items": {"type": "string"}},
                         "next_steps": {"type": "array", "items": {"type": "string"}},
                     },

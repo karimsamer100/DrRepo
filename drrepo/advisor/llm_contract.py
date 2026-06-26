@@ -6,6 +6,22 @@ from typing import Any, Dict, List
 from .profiles import get_profile, validate_profile_id
 
 LLM_ADVISOR_CONTRACT_VERSION = "v1"
+ADVISOR_ACTION_REQUIRED_FIELDS = ("title", "why_it_matters", "evidence", "suggested_fix", "priority")
+
+
+def get_llm_advisor_action_schema() -> dict[str, object]:
+    return {
+        "type": "object",
+        "required": list(ADVISOR_ACTION_REQUIRED_FIELDS),
+        "properties": {
+            "title": {"type": "string"},
+            "why_it_matters": {"type": "string"},
+            "evidence": {"type": "array", "items": {"type": "string"}},
+            "suggested_fix": {"type": "string"},
+            "priority": {"type": "string", "enum": ["high", "medium", "low"]},
+        },
+        "additionalProperties": False,
+    }
 
 
 def _as_dict(value: Any) -> Dict[str, Any]:
@@ -211,27 +227,14 @@ def build_llm_advisor_payload(
 
 
 def get_llm_advisor_output_schema() -> dict[str, object]:
-    action_schema = {
-        "type": "object",
-        "required": ["title", "why_it_matters", "evidence", "suggested_fix", "priority"],
-        "properties": {
-            "title": {"type": "string"},
-            "why_it_matters": {"type": "string"},
-            "evidence": {"type": "array", "items": {"type": "string"}},
-            "suggested_fix": {"type": "string"},
-            "priority": {"type": "string", "enum": ["high", "medium", "low"]},
-        },
-        "additionalProperties": False,
-    }
-
     return {
         "type": "object",
         "required": ["summary", "profile_context", "top_priorities", "lower_priority_items", "limitations", "next_steps"],
         "properties": {
             "summary": {"type": "string"},
             "profile_context": {"type": "string"},
-            "top_priorities": {"type": "array", "items": action_schema},
-            "lower_priority_items": {"type": "array", "items": action_schema},
+            "top_priorities": {"type": "array", "items": get_llm_advisor_action_schema()},
+            "lower_priority_items": {"type": "array", "items": get_llm_advisor_action_schema()},
             "limitations": {"type": "array", "items": {"type": "string"}},
             "next_steps": {"type": "array", "items": {"type": "string"}},
         },
@@ -266,7 +269,7 @@ def validate_llm_advisor_response(response: dict[str, object]) -> list[str]:
             if not isinstance(action, dict):
                 errors.append(f"{field_name}[{index}] must be a dict")
                 continue
-            for required in ["title", "why_it_matters", "evidence", "suggested_fix", "priority"]:
+            for required in ADVISOR_ACTION_REQUIRED_FIELDS:
                 if required not in action:
                     errors.append(f"{field_name}[{index}] missing required field: {required}")
             if action.get("priority") not in {"high", "medium", "low"}:

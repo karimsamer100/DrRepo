@@ -114,13 +114,24 @@ def test_deterministic_provider_returns_valid_llm_provider_result():
 
 
 def test_selected_advisor_response_validates_with_contract():
-    result = route_llm_advisor_response({"system_prompt": "x", "user_prompt": "y"}, {"summary": "fallback", "profile_context": "p", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}, providers=[lambda prompt_bundle, fallback_response=None: LLMProviderResult(provider_id="gemini", status="ok", response={"summary": "ok", "profile_context": "p", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []})])
+    result = route_llm_advisor_response({"system_prompt": "x", "user_prompt": "y"}, {"summary": "fallback", "profile_context": "p", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}, providers=[lambda prompt_bundle, fallback_response=None: LLMProviderResult(provider_id="gemini", status="ok", response={"summary": "ok", "profile_context": "p", "top_priorities": [{"title": "Fix tests", "why_it_matters": "Confidence", "evidence": ["PYTEST-FAILED"], "suggested_fix": "Repair the tests", "priority": "high"}], "lower_priority_items": [], "limitations": [], "next_steps": []})])
     assert result["advisor_response"]["summary"] == "ok"
 
 
 def test_used_fallback_is_false_when_mock_external_provider_succeeds():
-    result = route_llm_advisor_response({"system_prompt": "x", "user_prompt": "y"}, {"summary": "fallback", "profile_context": "p", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}, providers=[lambda prompt_bundle, fallback_response=None: LLMProviderResult(provider_id="gemini", status="ok", response={"summary": "ok", "profile_context": "p", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []})])
+    result = route_llm_advisor_response({"system_prompt": "x", "user_prompt": "y"}, {"summary": "fallback", "profile_context": "p", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}, providers=[lambda prompt_bundle, fallback_response=None: LLMProviderResult(provider_id="gemini", status="ok", response={"summary": "ok", "profile_context": "p", "top_priorities": [{"title": "Fix tests", "why_it_matters": "Confidence", "evidence": ["PYTEST-FAILED"], "suggested_fix": "Repair the tests", "priority": "high"}], "lower_priority_items": [], "limitations": [], "next_steps": []})])
     assert result["used_fallback"] is False
+
+
+def test_router_falls_back_when_provider_missing_action_item_fields():
+    result = route_llm_advisor_response(
+        {"system_prompt": "x", "user_prompt": "y"},
+        {"summary": "fallback", "profile_context": "p", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []},
+        providers=[lambda prompt_bundle, fallback_response=None: LLMProviderResult(provider_id="gemini", status="ok", response={"summary": "ok", "profile_context": "p", "top_priorities": [{"title": "Fix tests"}], "lower_priority_items": [{"title": "Improve docs"}], "limitations": [], "next_steps": []})],
+    )
+
+    assert result["selected_provider_id"] == "deterministic_fallback"
+    assert result["used_fallback"] is True
 
 
 def test_used_fallback_is_true_when_deterministic_fallback_is_selected():

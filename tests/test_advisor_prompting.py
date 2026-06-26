@@ -24,6 +24,13 @@ def test_system_prompt_requires_json_only_output():
     assert "Return JSON only" in prompt
 
 
+def test_system_prompt_requires_full_action_item_fields():
+    prompt = build_llm_system_prompt()
+    assert "top_priorities and lower_priority_items" in prompt
+    assert "title, why_it_matters, evidence, suggested_fix, and priority" in prompt
+    assert "Do not invent evidence or fixes" in prompt
+
+
 def test_user_prompt_includes_serialized_payload():
     payload = build_llm_advisor_payload(_sample_audit(), _sample_plan())
     prompt = build_llm_user_prompt(payload)

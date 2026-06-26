@@ -55,15 +55,40 @@ def test_fake_gemini_transport_returns_ok():
         "limitations",
         "next_steps",
     ]
+    assert captured["payload"]["response_format"]["schema"]["properties"]["top_priorities"]["items"]["required"] == [
+        "title",
+        "why_it_matters",
+        "evidence",
+        "suggested_fix",
+        "priority",
+    ]
+    assert captured["payload"]["response_format"]["schema"]["properties"]["lower_priority_items"]["items"]["required"] == [
+        "title",
+        "why_it_matters",
+        "evidence",
+        "suggested_fix",
+        "priority",
+    ]
 
 
 def test_gemini_output_text_parses_to_ok():
     def fake_transport(endpoint, headers, payload):
-        return {"output_text": '{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}'}
+        return {"output_text": '{"summary": "ok", "profile_context": "ctx", "top_priorities": [{"title": "Fix tests", "why_it_matters": "Confidence", "evidence": ["PYTEST-FAILED"], "suggested_fix": "Repair the tests", "priority": "high"}], "lower_priority_items": [{"title": "Improve docs", "why_it_matters": "Clarity", "evidence": ["README"], "suggested_fix": "Add usage docs", "priority": "low"}], "limitations": [], "next_steps": []}'}
 
     result = call_gemini_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_transport)
     assert result.status == "ok"
     assert result.response is not None
+
+
+def test_gemini_response_missing_action_item_fields_returns_clear_invalid_response():
+    result = parse_llm_json_response(
+        "gemini",
+        '{"summary": "ok", "profile_context": "ctx", "top_priorities": [{"title": "Fix tests"}], "lower_priority_items": [{"title": "Improve docs"}], "limitations": [], "next_steps": []}',
+    )
+
+    assert result.status == "invalid_response"
+    assert "top_priorities[0] missing required field: why_it_matters" in (result.safe_message or "")
+    assert "lower_priority_items[0] missing required field: why_it_matters" in (result.safe_message or "")
 
 
 def test_fake_openai_compatible_transport_returns_ok_for_groq():

@@ -4,6 +4,7 @@ import json
 from copy import deepcopy
 
 from .llm_contract import (
+    ADVISOR_ACTION_REQUIRED_FIELDS,
     LLM_ADVISOR_CONTRACT_VERSION,
     build_llm_advisor_payload,
     get_llm_advisor_output_schema,
@@ -15,6 +16,9 @@ def build_llm_system_prompt() -> str:
         "You are DrRepo's evidence-grounded repository advisor. "
         "Use only the supplied audit evidence and profiled action plan. "
         "You are not a source-code oracle and must not invent findings, tools, tests, vulnerabilities, dependencies, or project features. "
+        f"Every item in top_priorities and lower_priority_items must include title, why_it_matters, evidence, suggested_fix, and priority. "
+        "If there are no urgent priorities, use an empty top_priorities list. "
+        "Do not invent evidence or fixes. "
         "Prioritize advice by the selected project goal, explain what to fix first and why, what can wait, and what evidence is missing. "
         "Return JSON only."
     )
