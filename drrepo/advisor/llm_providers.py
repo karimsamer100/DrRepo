@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import os
 from dataclasses import dataclass
 
-try:
-    from dotenv import load_dotenv
-except ImportError:  # pragma: no cover - optional dependency
-    load_dotenv = None
+from drrepo.config import load_repo_dotenv
+
+load_repo_dotenv()
 
 LLM_PROVIDER_INTERFACE_VERSION = "v1"
 
@@ -18,10 +16,6 @@ DEFAULT_PROVIDER_ORDER = [
 ]
 
 SUPPORTED_PROVIDER_IDS = set(DEFAULT_PROVIDER_ORDER)
-
-
-if load_dotenv is not None:
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"), override=False)
 
 
 @dataclass

@@ -3,8 +3,10 @@ from drrepo.advisor.llm_smoke import _sanitize_error_category, run_llm_smoke_tes
 
 def test_sanitize_error_category_uses_safe_labels(monkeypatch):
     assert _sanitize_error_category("missing_api_key", None) == "missing_api_key"
-    assert _sanitize_error_category("error", "401 unauthorized") == "auth_or_rate_limit"
-    assert _sanitize_error_category("error", "timed out") == "timeout"
+    assert _sanitize_error_category("error", "401 unauthorized") == "auth_error"
+    assert _sanitize_error_category("error", "429 rate limit") == "rate_limit"
+    assert _sanitize_error_category("error", "timed out") == "network_error"
+    assert _sanitize_error_category("error", "provider exploded") == "provider_error"
 
 
 def test_run_llm_smoke_test_reports_results_without_real_calls(monkeypatch):

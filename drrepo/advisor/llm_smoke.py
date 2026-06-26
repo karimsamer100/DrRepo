@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-import os
 from typing import Any
 
-try:
-    from dotenv import load_dotenv
-except ImportError:  # pragma: no cover - optional dependency
-    load_dotenv = None
+from drrepo.config import load_repo_dotenv
 
 from .llm_http import call_cerebras_advisor, call_gemini_advisor, call_groq_advisor
 from .llm_providers import build_provider_metadata
@@ -15,9 +11,7 @@ SMOKE_PROMPT = "Reply with exactly: DRREPO_LLM_OK"
 
 
 def _load_smoke_environment() -> None:
-    if load_dotenv is None:
-        return
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"), override=False)
+    load_repo_dotenv()
 
 
 def _build_prompt_bundle() -> dict[str, object]:
@@ -33,12 +27,15 @@ def _sanitize_error_category(status: str, error: str | None) -> str:
     if status == "invalid_response":
         return "invalid_response"
     if status == "error":
-        if error and "timeout" in error.lower():
-            return "timeout"
-        if error and any(token in error.lower() for token in ("401", "403", "429")):
-            return "auth_or_rate_limit"
-        if error and "timed out" in error.lower():
-            return "timeout"
+        if error is None:
+            return "provider_error"
+        lowered = error.lower()
+        if "401" in lowered or "403" in lowered or "unauthorized" in lowered or "forbidden" in lowered:
+            return "auth_error"
+        if "429" in lowered or "rate limit" in lowered or "too many requests" in lowered:
+            return "rate_limit"
+        if "timeout" in lowered or "timed out" in lowered or "network" in lowered:
+            return "network_error"
         return "provider_error"
     return status
 

@@ -5,19 +5,14 @@ import os
 from typing import Any
 from urllib import error, request
 
-try:
-    from dotenv import load_dotenv
-except ImportError:  # pragma: no cover - optional dependency
-    load_dotenv = None
+from drrepo.config import load_repo_dotenv
 
 from .llm_contract import validate_llm_advisor_response
 from .llm_providers import LLMProviderResult
 
+load_repo_dotenv()
+
 LLM_HTTP_ADAPTER_VERSION = "v1"
-
-
-if load_dotenv is not None:
-    load_dotenv(dotenv_path=os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), ".env"), override=False)
 
 
 def _build_request_payload(prompt_bundle: dict[str, object], provider_id: str) -> dict[str, object]:
