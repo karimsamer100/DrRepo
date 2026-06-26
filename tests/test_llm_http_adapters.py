@@ -35,8 +35,31 @@ def test_call_openrouter_advisor_returns_missing_api_key_without_key(monkeypatch
 
 
 def test_fake_gemini_transport_returns_ok():
+    captured = {}
+
     def fake_transport(endpoint, headers, payload):
-        return {"candidates": [{"content": {"parts": [{"text": '{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}'}]}}]}
+        captured["endpoint"] = endpoint
+        captured["headers"] = headers
+        captured["payload"] = payload
+        return {"output_text": '{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}'}
+
+    result = call_gemini_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_transport)
+    assert result.status == "ok"
+    assert result.response is not None
+    assert captured["payload"]["response_format"]["mime_type"] == "application/json"
+    assert captured["payload"]["response_format"]["schema"]["required"] == [
+        "summary",
+        "profile_context",
+        "top_priorities",
+        "lower_priority_items",
+        "limitations",
+        "next_steps",
+    ]
+
+
+def test_gemini_output_text_parses_to_ok():
+    def fake_transport(endpoint, headers, payload):
+        return {"output_text": '{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}'}
 
     result = call_gemini_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_transport)
     assert result.status == "ok"
@@ -82,6 +105,39 @@ def test_parse_llm_json_response_accepts_raw_dict_advisor_response():
     result = parse_llm_json_response("gemini", response)
     assert result.status == "ok"
     assert result.response == response
+
+
+def test_gemini_legacy_candidates_response_parses_to_ok():
+    def fake_transport(endpoint, headers, payload):
+        return {"candidates": [{"content": {"parts": [{"text": '{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}'}]}}]}
+
+    result = call_gemini_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_transport)
+    assert result.status == "ok"
+    assert result.response is not None
+
+
+def test_gemini_wrapper_without_final_text_returns_safe_invalid_response():
+    raw_response = {
+        "steps": [{"state": {"done": True}}],
+        "model_output": {"tokens": []},
+        "content": [{"parts": [{}]}],
+    }
+
+    result = parse_llm_json_response("gemini", raw_response)
+    assert result.status == "invalid_response"
+    assert result.safe_message == "no final Gemini output text found"
+
+
+def test_gemini_wrapper_dict_missing_advisor_fields_is_not_validated_directly():
+    raw_response = {
+        "steps": [{"state": {"done": True}}],
+        "model_output": {"tokens": []},
+        "content": [{"parts": [{}]}],
+    }
+
+    result = parse_llm_json_response("gemini", raw_response)
+    assert result.status == "invalid_response"
+    assert result.safe_message == "no final Gemini output text found"
 
 
 def test_transport_exception_returns_error_status():

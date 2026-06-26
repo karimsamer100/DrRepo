@@ -14,6 +14,15 @@ load_repo_dotenv()
 
 LLM_HTTP_ADAPTER_VERSION = "v1"
 
+_LLM_ADVISOR_REQUIRED_FIELDS = (
+    "summary",
+    "profile_context",
+    "top_priorities",
+    "lower_priority_items",
+    "limitations",
+    "next_steps",
+)
+
 
 class ProviderHTTPError(RuntimeError):
     def __init__(self, message: str, *, status_code: int | None = None, safe_message: str | None = None) -> None:
@@ -37,7 +46,26 @@ def _build_request_payload(
             f"User request:\n{user_prompt}\n\n"
             "Return only valid JSON matching the advisor response contract."
         )
-        return {"model": model_name or "gemini-2.5-flash", "input": combined_prompt}
+        return {
+            "model": model_name or "gemini-2.5-flash",
+            "input": combined_prompt,
+            "response_format": {
+                "type": "text",
+                "mime_type": "application/json",
+                "schema": {
+                    "type": "object",
+                    "properties": {
+                        "summary": {"type": "string"},
+                        "profile_context": {"type": "string"},
+                        "top_priorities": {"type": "array", "items": {"type": "object"}},
+                        "lower_priority_items": {"type": "array", "items": {"type": "object"}},
+                        "limitations": {"type": "array", "items": {"type": "string"}},
+                        "next_steps": {"type": "array", "items": {"type": "string"}},
+                    },
+                    "required": list(_LLM_ADVISOR_REQUIRED_FIELDS),
+                },
+            },
+        }
 
     return {
         "provider_id": provider_id,
@@ -258,7 +286,95 @@ def call_openrouter_advisor(
     )
 
 
-def _extract_candidate(raw_response: object) -> object:
+def _has_advisor_response_fields(value: object) -> bool:
+    return isinstance(value, dict) and all(field in value for field in _LLM_ADVISOR_REQUIRED_FIELDS)
+
+
+def _extract_last_text_block(value: object) -> str | None:
+    if isinstance(value, str):
+        return value if value.strip() else None
+    if isinstance(value, list):
+        for item in reversed(value):
+            candidate = _extract_last_text_block(item)
+            if candidate is not None:
+                return candidate
+        return None
+    if not isinstance(value, dict):
+        return None
+
+    for key in ("output_text", "final_output", "final_text", "response_text", "text", "output"):
+        if key in value:
+            candidate = _extract_last_text_block(value.get(key))
+            if candidate is not None:
+                return candidate
+
+    for key in ("parts", "candidates", "steps", "model_output", "content"):
+        if key in value:
+            candidate = _extract_last_text_block(value.get(key))
+            if candidate is not None:
+                return candidate
+
+    return None
+
+
+def _parse_json_text(text: str) -> object | None:
+    stripped = text.strip()
+    candidates = [stripped]
+    if "{" in stripped and "}" in stripped:
+        start = stripped.find("{")
+        end = stripped.rfind("}")
+        if start < end:
+            candidates.append(stripped[start : end + 1])
+    if "[" in stripped and "]" in stripped:
+        start = stripped.find("[")
+        end = stripped.rfind("]")
+        if start < end:
+            candidates.append(stripped[start : end + 1])
+
+    for candidate in candidates:
+        try:
+            return json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+    return None
+
+
+def _extract_gemini_candidate(raw_response: object) -> tuple[object | None, bool]:
+    if _has_advisor_response_fields(raw_response):
+        return raw_response, True
+    if isinstance(raw_response, str):
+        return raw_response, True
+    if not isinstance(raw_response, dict):
+        return None, False
+
+    for key in ("output_text", "output", "text", "final_output", "final_text", "response_text"):
+        if key not in raw_response:
+            continue
+        candidate_value = raw_response.get(key)
+        if isinstance(candidate_value, dict) and _has_advisor_response_fields(candidate_value):
+            return candidate_value, True
+        candidate_text = _extract_last_text_block(candidate_value)
+        if candidate_text is not None:
+            return candidate_text, True
+
+    for key in ("steps", "model_output", "content", "candidates"):
+        if key not in raw_response:
+            continue
+        candidate_text = _extract_last_text_block(raw_response.get(key))
+        if candidate_text is not None:
+            return candidate_text, True
+
+    return None, True
+
+
+def _extract_candidate(raw_response: object, provider_id: str | None = None) -> object:
+    if provider_id == "gemini":
+        candidate, found_text = _extract_gemini_candidate(raw_response)
+        if candidate is None and found_text:
+            return None
+        if candidate is not None:
+            return candidate
+        return None
     if isinstance(raw_response, dict):
         if isinstance(raw_response.get("response"), dict):
             return _extract_candidate(raw_response["response"])
@@ -298,21 +414,35 @@ def parse_llm_json_response(
     endpoint_family: str | None = None,
     auth_method: str | None = None,
 ) -> LLMProviderResult:
-    candidate = _extract_candidate(raw_response)
+    candidate = _extract_candidate(raw_response, provider_id)
 
     if candidate is None:
+        safe_message = "no final Gemini output text found" if provider_id == "gemini" and isinstance(raw_response, dict) else "No JSON payload found"
         return LLMProviderResult(
             provider_id=provider_id,
             status="invalid_response",
-            error="No JSON payload found",
+            error=safe_message,
             error_category="invalid_response",
-            safe_message="No JSON payload found",
+            safe_message=safe_message,
             endpoint_family=endpoint_family,
             auth_method=auth_method,
         )
 
     if isinstance(candidate, str):
-        if candidate.startswith("{") or candidate.startswith("["):
+        if provider_id == "gemini":
+            try:
+                parsed = json.loads(candidate)
+            except json.JSONDecodeError as exc:
+                return LLMProviderResult(
+                    provider_id=provider_id,
+                    status="invalid_response",
+                    error=str(exc),
+                    error_category="invalid_response",
+                    safe_message=str(exc),
+                    endpoint_family=endpoint_family,
+                    auth_method=auth_method,
+                )
+        elif candidate.startswith("{") or candidate.startswith("["):
             try:
                 parsed = json.loads(candidate)
             except json.JSONDecodeError as exc:
