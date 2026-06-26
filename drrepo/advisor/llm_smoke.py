@@ -7,7 +7,13 @@ from drrepo.config import load_repo_dotenv
 from .llm_http import call_cerebras_advisor, call_gemini_advisor, call_groq_advisor
 from .llm_providers import build_provider_metadata
 
-SMOKE_PROMPT = "Reply with exactly: DRREPO_LLM_OK"
+SMOKE_PROMPT_DISPLAY = "Return valid DrRepo advisor JSON contract"
+SMOKE_PROMPT = (
+    "Return only valid JSON matching the DrRepo advisor response contract. "
+    "Do not wrap the response in markdown or add extra text. "
+    "Use exactly these fields: summary, profile_context, top_priorities, lower_priority_items, limitations, next_steps. "
+    "Example JSON: {\"summary\": \"DrRepo LLM smoke test completed successfully.\", \"profile_context\": \"This is a minimal smoke test for the advisor response contract.\", \"top_priorities\": [], \"lower_priority_items\": [], \"limitations\": [], \"next_steps\": [\"LLM provider returned a valid advisor response.\"]}"
+)
 
 
 def _load_smoke_environment() -> None:
@@ -70,7 +76,7 @@ def run_llm_smoke_test() -> dict[str, Any]:
     succeeded = [entry for entry in results if entry["success"]]
     fallback_used = not succeeded
     return {
-        "prompt": SMOKE_PROMPT,
+        "prompt": SMOKE_PROMPT_DISPLAY,
         "provider_results": results,
         "succeeded": [entry["provider_id"] for entry in succeeded],
         "failed": [entry["provider_id"] for entry in results if not entry["success"]],

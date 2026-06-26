@@ -1,4 +1,4 @@
-from drrepo.advisor.llm_smoke import _sanitize_error_category, print_smoke_summary, run_llm_smoke_test
+from drrepo.advisor.llm_smoke import SMOKE_PROMPT, SMOKE_PROMPT_DISPLAY, _sanitize_error_category, print_smoke_summary, run_llm_smoke_test
 
 
 def test_sanitize_error_category_uses_safe_labels(monkeypatch):
@@ -33,6 +33,13 @@ def test_run_llm_smoke_test_reports_results_without_real_calls(monkeypatch):
     assert result["failed"] == ["groq", "cerebras"]
     assert result["fallback_used"] is False
     assert result["provider_results"][0]["status"] == "ok"
+    assert SMOKE_PROMPT_DISPLAY in result["prompt"]
+
+
+def test_smoke_prompt_mentions_advisor_json_contract():
+    assert "advisor response contract" in SMOKE_PROMPT.lower()
+    assert "summary" in SMOKE_PROMPT
+    assert "top_priorities" in SMOKE_PROMPT
 
 
 def test_print_smoke_summary_includes_safe_diagnostics(capsys):

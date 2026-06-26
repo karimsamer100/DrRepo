@@ -35,7 +35,7 @@ def test_call_openrouter_advisor_returns_missing_api_key_without_key(monkeypatch
 
 
 def test_fake_gemini_transport_returns_ok():
-    def fake_transport(payload):
+    def fake_transport(endpoint, headers, payload):
         return {"candidates": [{"content": {"parts": [{"text": '{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}'}]}}]}
 
     result = call_gemini_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_transport)
@@ -44,7 +44,7 @@ def test_fake_gemini_transport_returns_ok():
 
 
 def test_fake_openai_compatible_transport_returns_ok_for_groq():
-    def fake_transport(payload):
+    def fake_transport(endpoint, headers, payload):
         return {"choices": [{"message": {"content": '{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}'}}]}
 
     result = call_groq_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_transport)
@@ -52,7 +52,7 @@ def test_fake_openai_compatible_transport_returns_ok_for_groq():
 
 
 def test_fake_openai_compatible_transport_returns_ok_for_cerebras():
-    def fake_transport(payload):
+    def fake_transport(endpoint, headers, payload):
         return {"choices": [{"message": {"content": '{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}'}}]}
 
     result = call_cerebras_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_transport)
@@ -60,7 +60,7 @@ def test_fake_openai_compatible_transport_returns_ok_for_cerebras():
 
 
 def test_fake_openai_compatible_transport_returns_ok_for_openrouter():
-    def fake_transport(payload):
+    def fake_transport(endpoint, headers, payload):
         return {"choices": [{"message": {"content": '{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}'}}]}
 
     result = call_openrouter_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_transport)
