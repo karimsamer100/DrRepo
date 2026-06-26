@@ -53,6 +53,7 @@ def run_llm_smoke_test() -> dict[str, Any]:
     for provider_id, provider_callable in provider_callables:
         metadata = build_provider_metadata(provider_id)
         result = provider_callable(prompt_bundle)
+        error_category = getattr(result, "error_category", None) or _sanitize_error_category(result.status, getattr(result, "error", None))
         results.append(
             {
                 "provider_id": provider_id,
@@ -60,7 +61,9 @@ def run_llm_smoke_test() -> dict[str, Any]:
                 "model": metadata["model"],
                 "status": result.status,
                 "success": result.status == "ok",
-                "error_category": _sanitize_error_category(result.status, result.error),
+                "error_category": error_category,
+                "http_status": getattr(result, "http_status", None),
+                "safe_message": getattr(result, "safe_message", None) or getattr(result, "error", None),
             }
         )
 
@@ -78,10 +81,13 @@ def run_llm_smoke_test() -> dict[str, Any]:
 def print_smoke_summary(result: dict[str, Any]) -> None:
     print("DrRepo LLM smoke test")
     print(f"Prompt: {result['prompt']}")
-    print("Provider | Model | Status | Error")
+    print("Provider | Model | Status | Error category | HTTP status | Message")
     for entry in result["provider_results"]:
-        error = entry["error_category"] if not entry["success"] else "-"
-        print(f"{entry['provider_name']} | {entry['model']} | {'ok' if entry['success'] else 'failed'} | {error}")
+        success = entry.get("success", False)
+        error_category = entry.get("error_category") or "-"
+        http_status = entry.get("http_status") if entry.get("http_status") is not None else "-"
+        safe_message = entry.get("safe_message") or "-"
+        print(f"{entry['provider_name']} | {entry['model']} | {'ok' if success else 'failed'} | {error_category} | {http_status} | {safe_message}")
 
     if result["fallback_used"]:
         print("Fallback: AI advice is temporarily unavailable; deterministic fallback is being used.")

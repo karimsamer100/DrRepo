@@ -25,6 +25,11 @@ class LLMProviderResult:
     response: dict[str, object] | None = None
     error: str | None = None
     raw_response: object | None = None
+    error_category: str | None = None
+    http_status: int | None = None
+    safe_message: str | None = None
+    endpoint_family: str | None = None
+    auth_method: str | None = None
 
 
 def get_default_provider_order() -> list[str]:
@@ -49,7 +54,7 @@ def build_provider_metadata(provider_id: str) -> dict[str, object]:
             "display_name": "Google Gemini",
             "model": "gemini-2.5-flash",
             "role": "primary",
-            "api_key_env": "GEMINI_API_KEY",
+            "api_key_env": "GEMINI_API_KEY or GOOGLE_API_KEY",
             "supports_structured_output": True,
             "notes": ["Free-tier/API-key-based usage may have rate limits and model availability limits."],
         }

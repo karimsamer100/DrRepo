@@ -101,6 +101,64 @@ def test_api_key_is_not_exposed_in_error():
     assert "abc123" not in (result.error or "")
 
 
+def test_gemini_transport_uses_x_goog_api_key_and_does_not_expose_key():
+    captured = {}
+
+    def fake_transport(endpoint, headers, payload):
+        captured["endpoint"] = endpoint
+        captured["headers"] = headers
+        captured["payload"] = payload
+        raise RuntimeError("abc123")
+
+    result = call_gemini_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc123", transport=fake_transport)
+
+    assert result.status == "error"
+    assert captured["headers"]["x-goog-api-key"] == "abc123"
+    assert "Authorization" not in captured["headers"]
+    assert captured["endpoint"].endswith("/interactions")
+    assert "abc123" not in (result.error or "")
+
+
+def test_gemini_interactions_like_response_parses_to_ok():
+    def fake_transport(endpoint, headers, payload):
+        return {"output_text": '{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}'}
+
+    result = call_gemini_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_transport)
+
+    assert result.status == "ok"
+    assert result.response is not None
+
+
+def test_http_status_mapping_behaves_for_auth_rate_and_provider_errors():
+    class FakeHTTPError(Exception):
+        def __init__(self, code, message):
+            super().__init__(message)
+            self.code = code
+            self.reason = message
+
+    def fake_transport(endpoint, headers, payload):
+        raise FakeHTTPError(401, "Unauthorized")
+
+    result = call_groq_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_transport)
+    assert result.status == "error"
+    assert result.error_category == "auth_error"
+    assert result.http_status == 401
+
+    def fake_rate_limit_transport(endpoint, headers, payload):
+        raise FakeHTTPError(429, "Rate limit")
+
+    rate_result = call_groq_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_rate_limit_transport)
+    assert rate_result.error_category == "rate_limit"
+    assert rate_result.http_status == 429
+
+    def fake_provider_error_transport(endpoint, headers, payload):
+        raise FakeHTTPError(503, "Service unavailable")
+
+    provider_result = call_groq_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc", transport=fake_provider_error_transport)
+    assert provider_result.error_category == "provider_error"
+    assert provider_result.http_status == 503
+
+
 def test_build_provider_callables_from_environment_registers_expected_providers(monkeypatch):
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GROQ_API_KEY", raising=False)
