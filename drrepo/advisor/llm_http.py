@@ -13,6 +13,7 @@ from .llm_providers import LLMProviderResult
 load_repo_dotenv()
 
 LLM_HTTP_ADAPTER_VERSION = "v1"
+DEFAULT_HTTP_TIMEOUT_SECONDS = 30
 
 _LLM_ADVISOR_REQUIRED_FIELDS = (
     "summary",
@@ -86,7 +87,7 @@ def _default_transport(url: str, headers: dict[str, str], payload: dict[str, obj
     data = json.dumps(payload).encode("utf-8")
     req = request.Request(url, data=data, headers=headers, method="POST")
     try:
-        with request.urlopen(req, timeout=10) as response:
+        with request.urlopen(req, timeout=DEFAULT_HTTP_TIMEOUT_SECONDS) as response:
             body = response.read().decode("utf-8")
             try:
                 return json.loads(body)
