@@ -88,7 +88,13 @@ def _default_transport(url: str, headers: dict[str, str], payload: dict[str, obj
     try:
         with request.urlopen(req, timeout=10) as response:
             body = response.read().decode("utf-8")
-            return json.loads(body)
+            try:
+                return json.loads(body)
+            except json.JSONDecodeError:
+                parsed_body = _parse_json_text(body)
+                if parsed_body is not None:
+                    return parsed_body
+                raise
     except error.HTTPError as exc:
         status_code = exc.code
         safe_message = _safe_http_error_message(str(exc.reason or exc), status_code)

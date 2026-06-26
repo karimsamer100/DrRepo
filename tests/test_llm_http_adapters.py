@@ -251,3 +251,20 @@ def test_build_provider_callables_from_environment_registers_expected_providers(
 
 def test_http_adapter_version_is_available():
     assert LLM_HTTP_ADAPTER_VERSION == "v1"
+
+
+def test_default_transport_salvages_json_from_text_body(monkeypatch):
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def read(self):
+            return b"noise before {\"output_text\": \"{\\\"summary\\\": \\\"ok\\\", \\\"profile_context\\\": \\\"ctx\\\", \\\"top_priorities\\\": [], \\\"lower_priority_items\\\": [], \\\"limitations\\\": [], \\\"next_steps\\\": []}\"} noise after"
+
+    monkeypatch.setattr("drrepo.advisor.llm_http.request.urlopen", lambda req, timeout=10: FakeResponse())
+
+    result = call_gemini_advisor({"system_prompt": "x", "user_prompt": "y"}, api_key="abc")
+    assert result.status == "ok"
