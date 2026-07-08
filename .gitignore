@@ -17,3 +17,5 @@ tmp/
 
 # Env files
 .env
+
+docs/DrRepo_LLM_Implementation_Report.pdf
