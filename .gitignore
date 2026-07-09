@@ -19,3 +19,6 @@ tmp/
 .env
 
 docs/DrRepo_LLM_Implementation_Report.pdf
+
+# Agent skills (project-local, not committed)
+.agents/skills/
