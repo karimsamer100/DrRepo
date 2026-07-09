@@ -131,3 +131,19 @@ def test_advisor_response_safety():
     sensitive = {"prompt_bundle", "api_key", "token", "authorization", "raw_response", "prompt", "apiKey"}
     found = keys & sensitive
     assert not found, f"Advisor response exposes sensitive keys: {found}"
+
+
+def test_cors_allows_dev_origin():
+    origin = "http://localhost:5173"
+    response = client.options(
+        "/api/profiles",
+        headers={
+            "Origin": origin,
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers.get("access-control-allow-origin") == origin
+
+    get_response = client.get("/api/profiles", headers={"Origin": origin})
+    assert get_response.headers.get("access-control-allow-origin") == origin

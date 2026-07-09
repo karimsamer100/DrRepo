@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
+
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 
 from drrepo.advisor.profiles import list_profiles
 from drrepo.api.schemas import (
@@ -13,6 +16,20 @@ from drrepo.api.schemas import (
 from drrepo.api.service import run_audit_service
 
 app = FastAPI(title="DrRepo API", version="0.1.0")
+
+_origins_env = os.getenv("DRREPO_API_CORS_ORIGINS", "")
+allow_origins = [
+    o.strip()
+    for o in _origins_env.split(",")
+    if o.strip()
+] or ["http://localhost:5173"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=allow_origins,
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type"],
+)
 
 
 @app.get("/health", response_model=HealthCheckResponse)
