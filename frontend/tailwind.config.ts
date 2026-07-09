@@ -23,10 +23,11 @@ const config: Config = {
         error: '#ef4444',
         critical: '#dc2626',
         muted: '#94a3b8',
-        faint: '#64748b',
+        faint: '#7c8aa0',
       },
       fontFamily: {
         sans: [
+          'Inter',
           'ui-sans-serif',
           'system-ui',
           '-apple-system',
@@ -38,6 +39,7 @@ const config: Config = {
           'sans-serif',
         ],
         mono: [
+          'JetBrains Mono',
           'ui-monospace',
           'SFMono-Regular',
           'Menlo',

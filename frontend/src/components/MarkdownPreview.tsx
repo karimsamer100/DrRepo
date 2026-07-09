@@ -1,22 +1,53 @@
+import { useState } from 'react'
+
 interface MarkdownPreviewProps {
   content: string | null
 }
 
 export function MarkdownPreview({ content }: MarkdownPreviewProps) {
+  const [copied, setCopied] = useState(false)
+
   if (!content) return null
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(content)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    } catch {
+      // Ignore clipboard errors.
+    }
+  }
 
   return (
     <section className="animate-fade-up [animation-delay:300ms]">
       <div className="flex items-center justify-between mb-2">
-        <h3 className="text-[10px] font-semibold uppercase tracking-wider text-faint">
-          Markdown report
-        </h3>
+        <h3 className="text-xs font-medium text-muted">Markdown report</h3>
         <button
           type="button"
-          onClick={() => navigator.clipboard?.writeText(content)}
-          className="text-[11px] text-muted hover:text-primary transition-colors"
+          onClick={handleCopy}
+          className={`inline-flex items-center gap-1.5 text-[11px] transition-colors ${
+            copied
+              ? 'text-brand'
+              : 'text-muted hover:text-primary'
+          }`}
+          aria-live="polite"
         >
-          Copy
+          {copied && (
+            <svg
+              className="h-3.5 w-3.5 animate-[pulse_0.5s_ease-in-out]"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          )}
+          <span>{copied ? 'Copied' : 'Copy'}</span>
         </button>
       </div>
       <div className="rounded-lg border border-border bg-surface-2 overflow-hidden max-w-full">

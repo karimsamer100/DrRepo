@@ -18,9 +18,7 @@ export function MetadataCard({ metadata }: MetadataCardProps) {
 
   return (
     <section className="animate-fade-up [animation-delay:180ms] rounded-lg border border-border bg-surface-2 p-4">
-      <h3 className="text-[10px] font-semibold uppercase tracking-wider text-faint mb-3">
-        Repository metadata
-      </h3>
+      <h3 className="text-xs font-medium text-muted mb-3">Repository metadata</h3>
       {items.length > 0 && (
         <div className="grid grid-cols-2 gap-3 mb-3">
           {items.map((item) => (

@@ -27,9 +27,7 @@ export function AnalyzerStatusGrid({ sections }: AnalyzerStatusGridProps) {
 
   return (
     <section className="animate-fade-up [animation-delay:120ms] rounded-lg border border-border bg-surface-2 p-4">
-      <h3 className="text-[10px] font-semibold uppercase tracking-wider text-faint mb-3">
-        Evidence coverage
-      </h3>
+      <h3 className="text-xs font-medium text-muted mb-3">Evidence coverage</h3>
       <div className="flex flex-wrap gap-2">
         {entries.map(({ section, result }) => (
           <div

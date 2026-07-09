@@ -19,15 +19,15 @@ export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
   }, [])
 
   return (
-    <header className="h-14 border-b border-border bg-surface flex items-center justify-between px-6">
+    <header className="h-12 border-b border-border bg-surface/50 flex items-center justify-between px-4 lg:px-6">
       <div className="flex items-center gap-3">
-        <h1 className="text-sm font-semibold text-primary tracking-wide">
+        <h1 className="text-sm font-medium text-primary">
           Audit Console
         </h1>
         <span
           className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
             health === 'ok'
-              ? 'border-health/30 bg-health/10 text-health'
+              ? 'border-brand/30 bg-brand/10 text-brand'
               : health === 'error'
               ? 'border-error/30 bg-error/10 text-error'
               : 'border-border bg-surface-2 text-faint'
@@ -36,7 +36,7 @@ export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
           <span
             className={`h-1.5 w-1.5 rounded-full ${
               health === 'ok'
-                ? 'bg-health'
+                ? 'bg-brand'
                 : health === 'error'
                 ? 'bg-error'
                 : 'bg-faint animate-pulse'
@@ -49,7 +49,7 @@ export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
         <button
           type="button"
           onClick={onNew}
-          className="rounded-md border border-brand/40 bg-brand/10 px-3 py-1.5 text-xs font-medium text-brand hover:bg-brand/20 transition-all active:scale-[0.98]"
+          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted hover:border-brand/30 hover:text-brand hover:bg-brand/5 transition-colors"
         >
           New diagnostic
         </button>

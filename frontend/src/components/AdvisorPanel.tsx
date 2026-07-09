@@ -32,6 +32,22 @@ function dedupeActions(actions: AdvisorAction[] = []): ActionGroup[] {
   return Array.from(groups.values())
 }
 
+function dedupeWhyItMatters(items: AdvisorAction[]): string[] {
+  const seen = new Set<string>()
+  const result: string[] = []
+
+  items.forEach((item) => {
+    if (!item.why_it_matters) return
+    const normalized = item.why_it_matters.trim()
+    if (normalized.length === 0) return
+    if (seen.has(normalized)) return
+    seen.add(normalized)
+    result.push(item.why_it_matters)
+  })
+
+  return result
+}
+
 export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
   if (!advisor) return null
 
@@ -49,14 +65,7 @@ export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
   return (
     <section className="animate-fade-up [animation-delay:240ms] rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between mb-1">
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-faint">
-            Remediation plan
-          </div>
-          <h3 className="text-xs font-semibold uppercase tracking-wider text-faint">
-            Advisor
-          </h3>
-        </div>
+        <h3 className="text-xs font-medium text-muted">Advisor</h3>
         <span className="rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">
           {profileName}
         </span>
@@ -66,7 +75,7 @@ export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
 
       {fixNow.length > 0 && (
         <div className="mb-5">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-error mb-2">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-error mb-2">
             Fix now
           </div>
           <ol className="space-y-3">
@@ -77,23 +86,25 @@ export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
                 </span>
                 <div className="flex-1 border-l-2 border-error/60 pl-3">
                   <div className="text-sm font-medium text-primary">{group.title}</div>
-                  {group.items.some((item) => item.why_it_matters) && (
-                    <details className="mt-1">
-                      <summary className="text-[11px] text-muted cursor-pointer hover:text-primary transition-colors">
-                        Why it matters
-                      </summary>
-                      <ul className="mt-1.5 space-y-1 pl-1">
-                        {group.items.map(
-                          (item, i) =>
-                            item.why_it_matters && (
+                  {(() => {
+                    const uniqueWhys = dedupeWhyItMatters(group.items)
+                    return (
+                      uniqueWhys.length > 0 && (
+                        <details className="mt-1">
+                          <summary className="text-[11px] text-muted cursor-pointer hover:text-primary transition-colors">
+                            Why it matters
+                          </summary>
+                          <ul className="mt-1.5 space-y-1 pl-1">
+                            {uniqueWhys.map((why, i) => (
                               <li key={i} className="text-xs text-muted">
-                                {item.why_it_matters}
+                                {why}
                               </li>
-                            )
-                        )}
-                      </ul>
-                    </details>
-                  )}
+                            ))}
+                          </ul>
+                        </details>
+                      )
+                    )
+                  })()}
                 </div>
               </li>
             ))}
@@ -103,7 +114,7 @@ export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
 
       {fixNext.length > 0 && (
         <div className="mb-5">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-attention mb-2">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-attention mb-2">
             Fix next
           </div>
           <div className="divide-y divide-border/50">
@@ -131,7 +142,7 @@ export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
 
       {optional.length > 0 && (
         <div className="mb-4">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-faint mb-1.5">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-faint mb-1.5">
             Optional improvements
           </div>
           <ul className="space-y-1">

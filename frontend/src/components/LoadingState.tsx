@@ -31,10 +31,10 @@ export function LoadingState() {
         </div>
       </div>
 
-      <div className="mt-6 flex items-center justify-center gap-6 text-[11px] text-muted uppercase tracking-wider">
+      <div className="mt-6 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-[11px] text-muted uppercase tracking-wider">
         {stages.map((stage, i) => (
           <span key={stage} className="flex items-center gap-2">
-            <span className="h-4 w-4 rounded-full border border-border bg-surface-2 flex items-center justify-center text-[9px]">
+            <span className="h-4 w-4 shrink-0 rounded-full border border-border bg-surface-2 flex items-center justify-center text-[9px]">
               {i + 1}
             </span>
             {stage}

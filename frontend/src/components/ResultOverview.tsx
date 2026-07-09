@@ -17,7 +17,7 @@ function CategoryBar({ label, score }: { label: string; score: number }) {
       <div className="w-28 shrink-0 text-[11px] text-muted capitalize">{label}</div>
       <div className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden">
         <div
-          className={`h-full rounded-full ${
+          className={`h-full rounded-full transition-[width] ${
             score >= 85 ? 'bg-health' : score >= 70 ? 'bg-attention' : score >= 50 ? 'bg-warning' : 'bg-error'
           }`}
           style={{ width: `${score}%` }}
@@ -98,17 +98,17 @@ export function ResultOverview({ data }: ResultOverviewProps) {
         </p>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <ScoreCard title="Overall" score={scoring?.overall_score} />
-        <ScoreCard title="Repository Health" score={scoring?.repository_health_score} />
-        <ScoreCard title="Portfolio Readiness" score={scoring?.portfolio_readiness_score} />
+      <div className="space-y-3">
+        <ScoreCard title="Overall score" score={scoring?.overall_score} size="hero" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <ScoreCard title="Repository Health" score={scoring?.repository_health_score} />
+          <ScoreCard title="Portfolio Readiness" score={scoring?.portfolio_readiness_score} />
+        </div>
       </div>
 
       {categoryEntries.length > 0 && (
         <div className="rounded-lg border border-border bg-surface p-4">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-faint mb-2">
-            Category scores
-          </div>
+          <h3 className="text-xs font-medium text-muted mb-2">Category scores</h3>
           <div className="max-w-md divide-y divide-border/50">
             {categoryEntries.map(([key, score]) => (
               <CategoryBar key={key} label={key.replace(/_/g, ' ')} score={score} />

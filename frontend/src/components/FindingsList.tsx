@@ -46,9 +46,7 @@ export function FindingsList({ audit }: FindingsListProps) {
 
   return (
     <section className="animate-fade-up [animation-delay:180ms]">
-      <h3 className="text-[10px] font-semibold uppercase tracking-wider text-faint mb-2">
-        Findings
-      </h3>
+      <h3 className="text-xs font-medium text-muted mb-2">Findings</h3>
       <div className="space-y-2">
         {families.map((family) => {
           const codeGroups = buildCodeGroups(family.instances)
