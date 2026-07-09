@@ -7,8 +7,10 @@ const config: Config = {
     extend: {
       colors: {
         base: '#0b0f17',
+        panel: '#0e1420',
         surface: '#121826',
         'surface-2': '#1a2233',
+        raised: '#1a2332',
         border: '#243044',
         brand: {
           DEFAULT: '#22d3ee',
@@ -50,9 +52,19 @@ const config: Config = {
           'monospace',
         ],
       },
+      transitionTimingFunction: {
+        'out-strong': 'cubic-bezier(0.23, 1, 0.32, 1)',
+        'in-out-strong': 'cubic-bezier(0.77, 0, 0.175, 1)',
+      },
+      boxShadow: {
+        raised: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 8px 24px -6px rgba(0,0,0,0.4)',
+      },
       animation: {
         shimmer: 'shimmer 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',
         'fade-up': 'fadeUp 250ms ease-out forwards',
+        'progress-fill': 'progressFill 0.8s cubic-bezier(0.23, 1, 0.32, 1) forwards',
+        'cursor-blink': 'cursorBlink 1s step-end infinite',
+        'scan-sweep': 'scanSweep 2.5s ease-in-out infinite',
       },
       keyframes: {
         shimmer: {
@@ -62,6 +74,18 @@ const config: Config = {
         fadeUp: {
           from: { opacity: '0', transform: 'translateY(8px)' },
           to: { opacity: '1', transform: 'translateY(0)' },
+        },
+        progressFill: {
+          from: { width: '0%' },
+          to: { width: '100%' },
+        },
+        cursorBlink: {
+          '0%, 100%': { opacity: '1' },
+          '50%': { opacity: '0' },
+        },
+        scanSweep: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
         },
       },
     },

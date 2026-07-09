@@ -46,7 +46,7 @@ export default function App() {
 
             {state.status === 'error' && (
               <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-up">
-                <div className="w-full max-w-xl rounded-lg border border-error/30 bg-error/10 p-6 text-center">
+                <div className="w-full max-w-xl rounded-xl border border-error/30 bg-error/5 p-6 text-center">
                   <h2 className="text-sm font-semibold text-error mb-2">
                     Diagnostic failed
                   </h2>
@@ -54,7 +54,7 @@ export default function App() {
                   <button
                     type="button"
                     onClick={reset}
-                    className="rounded-md border border-error/30 bg-error/10 px-4 py-2 text-xs font-medium text-error hover:bg-error/20 transition-colors"
+                    className="rounded-md border border-error/30 px-4 py-2 text-xs font-medium text-error hover:bg-error/10 transition-colors duration-150 ease-out-strong"
                   >
                     Try again
                   </button>
@@ -64,8 +64,13 @@ export default function App() {
 
             {state.status === 'done' && state.data && (
               <>
+                <div className="mb-6 pb-4 border-b border-border">
+                  <h1 className="text-xl font-semibold text-primary tracking-tight">Diagnostic result</h1>
+                  <p className="text-xs text-faint mt-1 font-mono">{state.data.source_value}</p>
+                </div>
+
                 {/* Desktop two-column layout */}
-                <div className="hidden lg:grid lg:grid-cols-3 lg:gap-6 pb-12">
+                <div className="hidden lg:grid lg:grid-cols-3 lg:gap-8 pb-12">
                   <div className="col-span-2 space-y-6">
                     <ResultOverview data={state.data} />
                     <FindingsList audit={state.data.audit} />
@@ -74,10 +79,12 @@ export default function App() {
                       profileId={state.data.profile_id}
                     />
                   </div>
-                  <div className="col-span-1 space-y-6">
-                    <AnalyzerStatusGrid sections={analyzerSections} />
-                    <MetadataCard metadata={metadata} />
-                    <MarkdownPreview content={markdown} />
+                  <div className="col-span-1">
+                    <div className="lg:sticky lg:top-6 space-y-6">
+                      <AnalyzerStatusGrid sections={analyzerSections} />
+                      <MetadataCard metadata={metadata} />
+                      <MarkdownPreview content={markdown} />
+                    </div>
                   </div>
                 </div>
 

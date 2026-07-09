@@ -80,28 +80,58 @@ export function FindingsList({ audit }: FindingsListProps) {
 
               {hasDetails && (
                 <details className="mt-2">
-                  <summary className="text-[11px] text-muted cursor-pointer hover:text-primary transition-colors">
+                  <summary className="text-[11px] text-muted cursor-pointer hover:text-primary transition-colors focus:outline-none">
                     Details
                   </summary>
-                  <ul className="mt-2 space-y-1.5 pl-1">
-                    {Array.from(codeGroups.values()).map((group, i) => (
-                      <li key={i} className="text-xs text-muted">
-                        {group.code && (
-                          <span className="font-mono text-[10px] text-faint mr-2">
-                            {group.code}
-                            {group.count > 1 && ` (${group.count})`}
+                  {(() => {
+                    const msgMap = new Map<string, { message: string; codes: string[]; totalCount: number; allLocations: string[] }>()
+                    Array.from(codeGroups.values()).forEach((cg) => {
+                      const msgKey = cg.message.trim().toLowerCase()
+                      const existing = msgMap.get(msgKey)
+                      if (existing) {
+                        existing.totalCount += cg.count
+                        if (cg.code) existing.codes.push(cg.code)
+                        existing.allLocations.push(...cg.locations)
+                      } else {
+                        msgMap.set(msgKey, {
+                          message: cg.message,
+                          codes: cg.code ? [cg.code] : [],
+                          totalCount: cg.count,
+                          allLocations: [...cg.locations],
+                        })
+                      }
+                    })
+                    const messageGroups = Array.from(msgMap.values())
+                    const allLocations = [...new Set(messageGroups.flatMap(g => g.allLocations))]
+                    const locPreview = allLocations.slice(0, 3)
+                    const moreCount = allLocations.length > 3 ? allLocations.length - 3 : 0
+
+                    return (
+                      <div className="mt-2 space-y-2 pl-1">
+                        {messageGroups.map((mg) => (
+                          <div key={mg.message}>
+                            <div className="flex items-center gap-2">
+                              <span className="text-primary text-xs">{mg.message}</span>
+                              <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-faint">
+                                {mg.totalCount} {mg.totalCount === 1 ? 'check' : 'checks'}
+                              </span>
+                            </div>
+                            {mg.codes.length > 0 && (
+                              <span className="block mt-0.5 font-mono text-[10px] text-faint">
+                                {mg.codes.join(', ')}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                        {locPreview.length > 0 && (
+                          <span className="block font-mono text-[10px] text-faint">
+                            {locPreview.join(', ')}
+                            {moreCount > 0 && ` +${moreCount} more`}
                           </span>
                         )}
-                        <span className="text-primary">{group.message}</span>
-                        {group.locations.length > 0 && (
-                          <span className="block mt-0.5 font-mono text-[10px] text-faint">
-                            {group.locations.slice(0, 3).join(', ')}
-                            {group.locations.length > 3 && ` +${group.locations.length - 3} more`}
-                          </span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
+                      </div>
+                    )
+                  })()}
                 </details>
               )}
             </div>

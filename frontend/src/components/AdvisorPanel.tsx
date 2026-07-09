@@ -48,6 +48,26 @@ function dedupeWhyItMatters(items: AdvisorAction[]): string[] {
   return result
 }
 
+function WhyItMatters({ items }: { items: AdvisorAction[] }) {
+  const uniqueWhys = dedupeWhyItMatters(items)
+  if (uniqueWhys.length === 0) return null
+
+  return (
+    <details className="mt-1">
+      <summary className="text-[11px] text-muted cursor-pointer hover:text-primary transition-colors">
+        Why it matters
+      </summary>
+      <ul className="mt-1.5 space-y-1 pl-1">
+        {uniqueWhys.map((why, i) => (
+          <li key={i} className="text-xs text-muted">
+            {why}
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
+}
+
 export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
   if (!advisor) return null
 
@@ -63,7 +83,7 @@ export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
   if (!summary && fixNow.length === 0 && fixNext.length === 0) return null
 
   return (
-    <section className="animate-fade-up [animation-delay:240ms] rounded-lg border border-border bg-surface p-4">
+    <section className="rounded-lg border border-border bg-surface p-4">
       <div className="flex items-center justify-between mb-1">
         <h3 className="text-xs font-medium text-muted">Advisor</h3>
         <span className="rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">
@@ -71,44 +91,46 @@ export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
         </span>
       </div>
 
-      {summary && <p className="text-sm text-primary mb-4">{summary}</p>}
+      {summary && (
+        <div className="rounded-lg border border-border bg-surface-2 p-3 mb-4">
+          <p className="text-sm text-primary leading-relaxed">{summary}</p>
+        </div>
+      )}
 
       {fixNow.length > 0 && (
         <div className="mb-5">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-error mb-2">
-            Fix now
+          <div className="flex items-center gap-2 mb-3">
+            <span className="h-2 w-2 rounded-full bg-error" />
+            <div className="text-[11px] font-medium uppercase tracking-wider text-error">
+              Fix now
+            </div>
           </div>
-          <ol className="space-y-3">
-            {fixNow.map((group, index) => (
-              <li key={group.key} className="flex items-start gap-3">
-                <span className="mt-0.5 text-[10px] font-mono text-error/80 w-4 text-right">
-                  {index + 1}
-                </span>
-                <div className="flex-1 border-l-2 border-error/60 pl-3">
-                  <div className="text-sm font-medium text-primary">{group.title}</div>
-                  {(() => {
-                    const uniqueWhys = dedupeWhyItMatters(group.items)
-                    return (
-                      uniqueWhys.length > 0 && (
-                        <details className="mt-1">
-                          <summary className="text-[11px] text-muted cursor-pointer hover:text-primary transition-colors">
-                            Why it matters
-                          </summary>
-                          <ul className="mt-1.5 space-y-1 pl-1">
-                            {uniqueWhys.map((why, i) => (
-                              <li key={i} className="text-xs text-muted">
-                                {why}
-                              </li>
-                            ))}
-                          </ul>
-                        </details>
-                      )
-                    )
-                  })()}
-                </div>
-              </li>
-            ))}
-          </ol>
+
+          {fixNow[0] && (
+            <div className="rounded-lg border border-error/30 bg-error/5 p-4 mb-3">
+              <div className="text-[11px] font-medium uppercase tracking-wider text-error mb-1.5">
+                Start here
+              </div>
+              <div className="text-base font-semibold text-primary mb-1">{fixNow[0].title}</div>
+              <WhyItMatters items={fixNow[0].items} />
+            </div>
+          )}
+
+          {fixNow.length > 1 && (
+            <ol className="space-y-2">
+              {fixNow.slice(1).map((group, index) => (
+                <li key={group.key} className="flex items-start gap-3 rounded-md border border-border bg-surface-2 px-3 py-2">
+                  <span className="mt-0.5 text-[10px] font-mono text-error/80 w-4 text-right">
+                    {index + 2}
+                  </span>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-primary">{group.title}</div>
+                    <WhyItMatters items={group.items} />
+                  </div>
+                </li>
+              ))}
+            </ol>
+          )}
         </div>
       )}
 
@@ -128,7 +150,7 @@ export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-primary">{group.title}</span>
                     {group.items.length > 1 && (
-                      <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-faint">
+                      <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-faint">
                         {group.items.length}
                       </span>
                     )}

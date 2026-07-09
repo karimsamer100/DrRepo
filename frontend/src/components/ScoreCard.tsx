@@ -7,17 +7,34 @@ interface ScoreCardProps {
   size?: 'default' | 'hero'
 }
 
+function CornerTick({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="16"
+      height="16"
+      viewBox="0 0 16 16"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path d="M1 6V1h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  )
+}
+
 export function ScoreCard({ title, score, subtitle, size = 'default' }: ScoreCardProps) {
   if (size === 'hero') {
     const display = score === null || score === undefined ? '—' : `${Math.round(score)}`
     return (
-      <div className="rounded-lg border border-border bg-surface-2 p-5">
+      <div className="surface-raised rounded-xl p-6 relative overflow-hidden">
+        <CornerTick className="absolute top-4 left-4 text-brand/25" />
         <div className="text-[11px] font-medium uppercase tracking-wider text-faint mb-2">
           {title}
         </div>
         <div className="flex flex-col sm:flex-row sm:items-end gap-4">
           <div className="flex items-baseline gap-3">
-            <span className={`text-5xl font-bold tracking-tight ${scoreColor(score)}`}>
+            <span className={`text-5xl font-bold tracking-tight font-mono ${scoreColor(score)}`}>
               {display}
             </span>
             <span

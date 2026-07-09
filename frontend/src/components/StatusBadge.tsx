@@ -19,7 +19,7 @@ export function StatusBadge({ label, score }: StatusBadgeProps) {
     border = 'border-error/30 bg-error/10 text-error'
 
   return (
-    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium ${border} ${colorClass}`}>
+    <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[11px] font-medium ${border} ${colorClass}`}>
       {text}
     </span>
   )

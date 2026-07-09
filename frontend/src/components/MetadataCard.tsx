@@ -17,13 +17,13 @@ export function MetadataCard({ metadata }: MetadataCardProps) {
   if (items.length === 0 && metadata.has_readme === undefined) return null
 
   return (
-    <section className="animate-fade-up [animation-delay:180ms] rounded-lg border border-border bg-surface-2 p-4">
+    <section className="rounded-lg border border-border bg-surface-2 p-4">
       <h3 className="text-xs font-medium text-muted mb-3">Repository metadata</h3>
       {items.length > 0 && (
         <div className="grid grid-cols-2 gap-3 mb-3">
           {items.map((item) => (
             <div key={item.label}>
-              <div className="text-[10px] text-faint">{item.label}</div>
+              <div className="text-[11px] font-medium uppercase tracking-wider text-faint">{item.label}</div>
               <div className="text-sm font-mono text-primary">{item.value}</div>
             </div>
           ))}

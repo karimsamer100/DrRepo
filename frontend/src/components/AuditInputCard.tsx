@@ -7,6 +7,8 @@ interface AuditInputCardProps {
   disabled?: boolean
 }
 
+const EXAMPLE_PATH = 'examples/sample_good_repo'
+
 export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
   const [profiles, setProfiles] = useState<ProfileInfo[]>([])
   const [sourceValue, setSourceValue] = useState('')
@@ -20,6 +22,7 @@ export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
       .then((data) => {
         if (!cancelled) {
           setProfiles(data)
+          setProfilesError(null)
           if (data.length > 0 && !data.some((p) => p.profile_id === profileId)) {
             setProfileId(data[0].profile_id)
           }
@@ -35,7 +38,8 @@ export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
     }
   }, [])
 
-  const canSubmit = sourceValue.trim().length > 0 && !disabled
+  const apiUnreachable = !!profilesError
+  const canSubmit = sourceValue.trim().length > 0 && !disabled && !apiUnreachable
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -45,18 +49,28 @@ export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
   }
 
   return (
-    <div className="w-full max-w-4xl">
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+    <div className="w-full max-w-5xl">
+      <div className="mb-8 text-center">
+        <h1 className="text-2xl sm:text-3xl font-semibold text-primary tracking-tight mb-3">
+          Diagnose your Python repository
+        </h1>
+        <p className="text-sm text-muted max-w-lg mx-auto">
+          Run an evidence-driven audit to surface health issues, readiness gaps, and a prioritized remediation plan.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <form
           onSubmit={handleSubmit}
-          className="lg:col-span-3 rounded-xl border border-border bg-surface p-6 lg:p-8 shadow-lg shadow-black/20 transition-all"
+          className="lg:col-span-2 surface-raised rounded-xl p-6 lg:p-8"
         >
-          <div className="mb-6">
-            <h2 className="text-lg font-semibold text-primary">Run repository diagnostic</h2>
-            <p className="mt-1 text-sm text-muted">
-              Audit a local Python repository and get an evidence-driven readiness report.
-            </p>
-          </div>
+          {apiUnreachable && (
+            <div className="mb-5 rounded-md border border-error/30 bg-error/5 p-3">
+              <p className="text-sm text-error">
+                API unreachable — start the DrRepo API server and retry.
+              </p>
+            </div>
+          )}
 
           <div className="space-y-4">
             <div>
@@ -70,11 +84,18 @@ export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
                 onChange={(e) => setSourceValue(e.target.value)}
                 placeholder="e.g. ./my-project"
                 autoFocus
-                className="w-full rounded-md border border-border bg-base px-3 py-2 text-sm text-primary placeholder:text-faint focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
+                className="w-full rounded-md border border-border bg-base px-3 py-2.5 text-sm text-primary placeholder:text-faint focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
               />
-              <p className="mt-1.5 text-[11px] text-faint">
-                Path must be readable by the DrRepo API server.
-              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-[11px] text-faint">Try an example:</span>
+                <button
+                  type="button"
+                  onClick={() => setSourceValue(EXAMPLE_PATH)}
+                  className="inline-flex items-center rounded-full border border-border bg-base px-2.5 py-0.5 text-[11px] font-mono text-muted hover:border-brand/30 hover:text-brand transition-colors"
+                >
+                  {EXAMPLE_PATH}
+                </button>
+              </div>
             </div>
 
             <div>
@@ -85,7 +106,8 @@ export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
                 id="profileId"
                 value={profileId}
                 onChange={(e) => setProfileId(e.target.value)}
-                className="w-full rounded-md border border-border bg-base px-3 py-2 text-sm text-primary focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
+                disabled={apiUnreachable}
+                className="w-full rounded-md border border-border bg-base px-3 py-2.5 text-sm text-primary focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50 disabled:opacity-50"
               >
                 {profiles.map((p) => (
                   <option key={p.profile_id} value={p.profile_id}>
@@ -98,7 +120,7 @@ export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
               )}
             </div>
 
-            <label className="flex items-center gap-3 rounded-md border border-border bg-base px-3 py-2 cursor-pointer">
+            <label className="flex items-center gap-3 rounded-md border border-border bg-base px-3 py-2.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={includeMarkdown}
@@ -112,34 +134,36 @@ export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
           <button
             type="submit"
             disabled={!canSubmit}
-            className="mt-6 w-full rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-base shadow shadow-brand/20 hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand/50 disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+            className="mt-6 w-full rounded-md bg-brand px-4 py-2.5 text-sm font-semibold text-base shadow shadow-brand/20 hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand/50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors duration-150 ease-out-strong"
           >
             Run Diagnostic
           </button>
         </form>
 
-        <div className="lg:col-span-2 rounded-xl border border-border bg-surface p-6 lg:p-8">
-          <h3 className="text-xs font-medium text-muted mb-4">How it works</h3>
-          <ol className="space-y-4">
-            <li className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[10px] font-mono text-brand">
-                1
-              </span>
-              <span className="text-sm text-muted">Collect evidence from tests, linters, security scanners, and structure checks.</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[10px] font-mono text-brand">
-                2
-              </span>
-              <span className="text-sm text-muted">Score repository health and portfolio readiness with explainable rules.</span>
-            </li>
-            <li className="flex items-start gap-3">
-              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-surface-2 text-[10px] font-mono text-brand">
-                3
-              </span>
-              <span className="text-sm text-muted">Build a prioritized remediation plan tailored to your profile.</span>
-            </li>
-          </ol>
+        <div className="lg:col-span-1">
+          <div className="rounded-xl border border-border bg-surface p-5 h-full">
+            <h3 className="text-xs font-medium text-muted mb-4">How it works</h3>
+            <ol className="space-y-4">
+              <li className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border bg-base text-[10px] font-mono text-brand">
+                  1
+                </span>
+                <span className="text-sm text-muted">Collect evidence from tests, linters, security scanners, and structure checks.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border bg-base text-[10px] font-mono text-brand">
+                  2
+                </span>
+                <span className="text-sm text-muted">Score repository health and portfolio readiness with explainable rules.</span>
+              </li>
+              <li className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-border bg-base text-[10px] font-mono text-brand">
+                  3
+                </span>
+                <span className="text-sm text-muted">Build a prioritized remediation plan tailored to your profile.</span>
+              </li>
+            </ol>
+          </div>
         </div>
       </div>
     </div>

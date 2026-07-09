@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { AuditResponse } from '../types/api'
 import { ScoreCard } from './ScoreCard'
 import { StatusBadge } from './StatusBadge'
@@ -12,15 +13,22 @@ interface ResultOverviewProps {
 }
 
 function CategoryBar({ label, score }: { label: string; score: number }) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    const raf = requestAnimationFrame(() => setMounted(true))
+    return () => cancelAnimationFrame(raf)
+  }, [])
+
   return (
     <div className="flex items-center gap-3 py-1.5">
       <div className="w-28 shrink-0 text-[11px] text-muted capitalize">{label}</div>
       <div className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden">
         <div
-          className={`h-full rounded-full transition-[width] ${
+          className={`h-full rounded-full origin-left transition-transform duration-500 ease-out-strong ${
             score >= 85 ? 'bg-health' : score >= 70 ? 'bg-attention' : score >= 50 ? 'bg-warning' : 'bg-error'
           }`}
-          style={{ width: `${score}%` }}
+          style={{ transform: `scaleX(${mounted ? score / 100 : 0})` }}
         />
       </div>
       <div className={`w-8 text-right text-xs font-mono font-medium ${scoreColor(score)}`}>{score}</div>
@@ -52,15 +60,22 @@ export function ResultOverview({ data }: ResultOverviewProps) {
   )
 
   return (
-    <section className="space-y-5 animate-fade-up">
+    <section className="space-y-5">
       {hasIssues && (
         <div className="rounded-md border border-error/30 bg-error/5 p-3">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-error mb-1.5">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-error mb-2">
             Attention areas
           </div>
-          <p className="text-sm text-primary">
-            {attentionAreas.join(' · ')}
-          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {attentionAreas.map((area) => (
+              <span
+                key={area}
+                className="rounded-full border border-error/30 bg-error/10 px-2 py-0.5 text-[11px] font-medium text-error"
+              >
+                {area}
+              </span>
+            ))}
+          </div>
         </div>
       )}
 
@@ -72,31 +87,33 @@ export function ResultOverview({ data }: ResultOverviewProps) {
         </div>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div className="min-w-0">
-          <div className="text-[10px] font-semibold uppercase tracking-wider text-faint">
-            Repository
+      <div className="rounded-lg border border-border bg-surface p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0">
+            <div className="text-[11px] font-medium uppercase tracking-wider text-faint mb-0.5">
+              Repository
+            </div>
+            <div className="font-mono text-sm text-primary break-all">{data.source_value}</div>
           </div>
-          <div className="font-mono text-sm text-primary break-all">{data.source_value}</div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-faint">
+              {data.status}
+            </span>
+            {diagnosis?.repository_health && (
+              <StatusBadge
+                label={diagnosis.repository_health.label}
+                score={diagnosis.repository_health.score ?? undefined}
+              />
+            )}
+          </div>
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="rounded-full border border-health/30 bg-health/10 px-2 py-0.5 text-[11px] font-medium text-health">
-            {data.status}
-          </span>
-          {diagnosis?.repository_health && (
-            <StatusBadge
-              label={diagnosis.repository_health.label}
-              score={diagnosis.repository_health.score ?? undefined}
-            />
-          )}
-        </div>
-      </div>
 
-      {diagnosis?.repository_health?.summary && (
-        <p className="text-sm text-primary leading-relaxed">
-          {diagnosis.repository_health.summary}
-        </p>
-      )}
+        {diagnosis?.repository_health?.summary && (
+          <p className="mt-3 pt-3 border-t border-border text-sm text-primary leading-relaxed">
+            {diagnosis.repository_health.summary}
+          </p>
+        )}
+      </div>
 
       <div className="space-y-3">
         <ScoreCard title="Overall score" score={scoring?.overall_score} size="hero" />

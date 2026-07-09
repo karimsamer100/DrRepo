@@ -20,13 +20,13 @@ export function MarkdownPreview({ content }: MarkdownPreviewProps) {
   }
 
   return (
-    <section className="animate-fade-up [animation-delay:300ms]">
+    <section>
       <div className="flex items-center justify-between mb-2">
         <h3 className="text-xs font-medium text-muted">Markdown report</h3>
         <button
           type="button"
           onClick={handleCopy}
-          className={`inline-flex items-center gap-1.5 text-[11px] transition-colors ${
+          className={`inline-flex items-center gap-1.5 text-[11px] transition-colors duration-150 ease-out-strong ${
             copied
               ? 'text-brand'
               : 'text-muted hover:text-primary'
@@ -35,7 +35,7 @@ export function MarkdownPreview({ content }: MarkdownPreviewProps) {
         >
           {copied && (
             <svg
-              className="h-3.5 w-3.5 animate-[pulse_0.5s_ease-in-out]"
+              className="h-3.5 w-3.5 animate-[pulse_0.3s_ease-in-out]"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"

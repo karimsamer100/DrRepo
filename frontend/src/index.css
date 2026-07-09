@@ -19,6 +19,21 @@ body {
   color: #e5e7eb;
 }
 
+/* Surface depth system */
+@layer components {
+  .surface-raised {
+    @apply bg-raised border border-border border-t-white/[0.06] shadow-raised;
+  }
+
+  .surface-panel {
+    @apply bg-panel;
+  }
+
+  .surface-card {
+    @apply bg-surface border border-border;
+  }
+}
+
 /* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 8px;
@@ -49,7 +64,24 @@ input[type='checkbox'] {
   accent-color: #22d3ee;
 }
 
-/* Animation delay utilities for progressive reveal */
+/* Scan line used during loading states */
+.scan-line {
+  @apply absolute inset-y-0 w-1/4 bg-brand/5 -skew-x-12 pointer-events-none;
+  animation: scanSweep 2.5s ease-in-out infinite;
+}
+
+/* Button press feedback */
+@layer base {
+  button:not(:disabled):active,
+  [type='button']:not(:disabled):active,
+  [type='submit']:not(:disabled):active,
+  [role='button']:not(:disabled):active {
+    transform: scale(0.97);
+    transition-duration: 100ms;
+  }
+}
+
+/* Animation delay utilities for progressive reveal (used sparingly) */
 .animate-delay-120 {
   animation-delay: 120ms;
 }
@@ -66,9 +98,14 @@ input[type='checkbox'] {
   animation-delay: 300ms;
 }
 
-/* Width transition utility for progress bars */
-.transition-width {
-  transition-property: width;
-  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
-  transition-duration: 500ms;
+/* Reduced motion: instant state changes, no movement */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
