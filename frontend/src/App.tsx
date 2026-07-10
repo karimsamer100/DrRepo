@@ -30,6 +30,7 @@ export default function App() {
     if (state.status !== 'done' || !state.data) return
 
     const item: RecentAudit = {
+      sourceType: state.data.source_type === 'github_url' ? 'github_url' : 'local_path',
       sourceLabel: state.data.source_value,
       profile: state.data.profile_id,
       createdAt: new Date().toISOString(),

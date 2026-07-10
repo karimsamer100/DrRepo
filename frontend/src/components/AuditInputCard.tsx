@@ -1,11 +1,16 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import type { ProfileInfo } from '../types/api'
+import type { ProfileInfo, SourceType } from '../types/api'
 import { listProfiles } from '../api/client'
 import type { RecentAudit } from '../lib/recentAudits'
 import { RecentAudits } from './RecentAudits'
 
 interface AuditInputCardProps {
-  onSubmit: (sourceValue: string, profileId: string, includeMarkdown: boolean) => void
+  onSubmit: (
+    sourceType: SourceType,
+    sourceValue: string,
+    profileId: string,
+    includeMarkdown: boolean
+  ) => void
   recentAudits?: RecentAudit[]
   onSelectRecent?: (item: RecentAudit) => void
   onClearRecent?: () => void
@@ -13,6 +18,17 @@ interface AuditInputCardProps {
 }
 
 const EXAMPLE_PATH = 'examples/sample_good_repo'
+const EXAMPLE_GITHUB_URL = 'https://github.com/pypa/sampleproject'
+
+const SOURCE_LABELS: Record<SourceType, string> = {
+  local_path: 'Local path',
+  github_url: 'GitHub URL',
+}
+
+const SOURCE_PLACEHOLDERS: Record<SourceType, string> = {
+  local_path: 'e.g. ./my-project',
+  github_url: 'https://github.com/owner/repo',
+}
 
 export function AuditInputCard({
   onSubmit,
@@ -22,6 +38,7 @@ export function AuditInputCard({
   disabled,
 }: AuditInputCardProps) {
   const [profiles, setProfiles] = useState<ProfileInfo[]>([])
+  const [sourceType, setSourceType] = useState<SourceType>('local_path')
   const [sourceValue, setSourceValue] = useState('')
   const [profileId, setProfileId] = useState('student_portfolio')
   const [includeMarkdown, setIncludeMarkdown] = useState(false)
@@ -55,16 +72,25 @@ export function AuditInputCard({
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (canSubmit) {
-      onSubmit(sourceValue.trim(), profileId, includeMarkdown)
+      onSubmit(sourceType, sourceValue.trim(), profileId, includeMarkdown)
     }
   }
 
   const handleSelectRecent = (item: RecentAudit) => {
+    setSourceType(item.sourceType)
     setSourceValue(item.sourceLabel)
     if (profiles.some((p) => p.profile_id === item.profile)) {
       setProfileId(item.profile)
     }
     onSelectRecent?.(item)
+  }
+
+  const setExample = () => {
+    if (sourceType === 'local_path') {
+      setSourceValue(EXAMPLE_PATH)
+    } else {
+      setSourceValue(EXAMPLE_GITHUB_URL)
+    }
   }
 
   return (
@@ -74,7 +100,7 @@ export function AuditInputCard({
           Diagnose your Python repository
         </h1>
         <p className="text-sm text-muted max-w-lg mx-auto">
-          Run an evidence-driven audit to surface health issues, readiness gaps, and a prioritized remediation plan.
+          Run an evidence-driven audit on a local directory or a public GitHub repository.
         </p>
       </div>
 
@@ -93,15 +119,40 @@ export function AuditInputCard({
 
           <div className="space-y-4">
             <div>
+              <label className="block text-xs font-medium text-muted mb-1.5">
+                Source
+              </label>
+              <div className="flex rounded-md border border-border bg-base p-1">
+                {(Object.keys(SOURCE_LABELS) as SourceType[]).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      setSourceType(mode)
+                      setSourceValue('')
+                    }}
+                    className={`flex-1 rounded px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${
+                      sourceType === mode
+                        ? 'bg-brand/10 text-brand'
+                        : 'text-muted hover:text-primary'
+                    }`}
+                  >
+                    {SOURCE_LABELS[mode]}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
               <label htmlFor="sourceValue" className="block text-xs font-medium text-muted mb-1.5">
-                Local repository path
+                {sourceType === 'local_path' ? 'Local repository path' : 'Public GitHub repository URL'}
               </label>
               <input
                 id="sourceValue"
                 type="text"
                 value={sourceValue}
                 onChange={(e) => setSourceValue(e.target.value)}
-                placeholder="e.g. ./my-project"
+                placeholder={SOURCE_PLACEHOLDERS[sourceType]}
                 autoFocus
                 className="w-full rounded-md border border-border bg-base px-3 py-2.5 text-sm text-primary placeholder:text-faint focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
               />
@@ -109,12 +160,17 @@ export function AuditInputCard({
                 <span className="text-[11px] text-faint">Try an example:</span>
                 <button
                   type="button"
-                  onClick={() => setSourceValue(EXAMPLE_PATH)}
+                  onClick={setExample}
                   className="inline-flex items-center rounded-full border border-border bg-base px-2.5 py-0.5 text-[11px] font-mono text-muted hover:border-brand/30 hover:text-brand transition-colors"
                 >
-                  {EXAMPLE_PATH}
+                  {sourceType === 'local_path' ? EXAMPLE_PATH : EXAMPLE_GITHUB_URL}
                 </button>
               </div>
+              {sourceType === 'github_url' && (
+                <p className="mt-2 text-[11px] text-faint">
+                  Public GitHub repositories only. Private repos and tokens are not supported in this step.
+                </p>
+              )}
             </div>
 
             <div>

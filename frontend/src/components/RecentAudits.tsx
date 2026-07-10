@@ -46,7 +46,7 @@ export function RecentAudits({ items, onSelect, onClear }: RecentAuditsProps) {
               item.overallScore === null ? '—' : `${Math.round(item.overallScore)}`
 
             return (
-              <li key={`${item.sourceLabel}-${item.profile}-${index}`}>
+              <li key={`${item.sourceType}-${item.sourceLabel}-${item.profile}-${index}`}>
                 <button
                   type="button"
                   onClick={() => onSelect(item)}
@@ -54,8 +54,13 @@ export function RecentAudits({ items, onSelect, onClear }: RecentAuditsProps) {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <div className="truncate font-mono text-xs text-primary">
-                        {item.sourceLabel}
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full border border-border bg-surface px-1.5 py-0.5 text-[10px] text-faint uppercase">
+                          {item.sourceType === 'github_url' ? 'GitHub' : 'Local'}
+                        </span>
+                        <span className="truncate font-mono text-xs text-primary">
+                          {item.sourceLabel}
+                        </span>
                       </div>
                       <div className="mt-1 flex items-center gap-2">
                         <span className="rounded-full border border-border bg-surface px-1.5 py-0.5 text-[10px] text-faint">

@@ -18,8 +18,13 @@ def test_accepts_https_dotgit():
     assert is_public_github_repo_url("https://github.com/owner/repo.git")
 
 
-def test_accepts_ssh():
-    assert is_public_github_repo_url("git@github.com:owner/repo.git")
+def test_rejects_ssh():
+    assert not is_public_github_repo_url("git@github.com:owner/repo.git")
+    assert not is_public_github_repo_url("ssh://git@github.com/owner/repo.git")
+
+
+def test_rejects_file_scheme():
+    assert not is_public_github_repo_url("file:///etc/passwd")
 
 
 def test_rejects_owner_only():
@@ -38,8 +43,9 @@ def test_normalize_https():
     assert normalize_github_repo_url("https://github.com/owner/repo") == "https://github.com/owner/repo.git"
 
 
-def test_normalize_ssh():
-    assert normalize_github_repo_url("git@github.com:owner/repo.git") == "https://github.com/owner/repo.git"
+def test_normalize_ssh_raises():
+    with pytest.raises(ValueError):
+        normalize_github_repo_url("git@github.com:owner/repo.git")
 
 
 def test_normalize_invalid_raises():
@@ -54,5 +60,3 @@ def test_normalize_regressions():
     assert normalize_github_repo_url("https://github.com/owner/git") == "https://github.com/owner/git.git"
     # already-suffixed should remain unchanged
     assert normalize_github_repo_url("https://github.com/owner/repo.git") == "https://github.com/owner/repo.git"
-    # ssh form
-    assert normalize_github_repo_url("git@github.com:owner/project.git") == "https://github.com/owner/project.git"

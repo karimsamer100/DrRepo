@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import importlib
 import os
+import shutil
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -22,6 +23,25 @@ def _make_client(monkeypatch, dist_path: str | None):
         monkeypatch.delenv("DRREPO_FRONTEND_DIST", raising=False)
     importlib.reload(app_module)
     return TestClient(app_module.app)
+
+
+def _mock_github_clone(monkeypatch, workspace: Path, source_repo: str):
+    """Patch workspace helpers so GitHub URL audits clone a local fixture."""
+    repo_path = workspace / "repo"
+
+    def fake_create_temp_workspace(prefix: str = "drrepo-") -> Path:
+        return workspace
+
+    def fake_clone_public_github_repo(url: str, workspace_path: Path, timeout_seconds: int = 60) -> Path:
+        shutil.copytree(source_repo, repo_path)
+        return repo_path
+
+    def fake_cleanup_workspace(path: Path) -> None:
+        return
+
+    monkeypatch.setattr("drrepo.input.workspace.create_temp_workspace", fake_create_temp_workspace)
+    monkeypatch.setattr("drrepo.input.workspace.clone_public_github_repo", fake_clone_public_github_repo)
+    monkeypatch.setattr("drrepo.input.workspace.cleanup_workspace", fake_cleanup_workspace)
 
 
 def test_health():
@@ -71,11 +91,114 @@ def test_audit_unsupported_source_type():
     response = client.post(
         "/api/audits",
         json={
+            "source_type": "s3_url",
+            "source_value": "s3://bucket/repo",
+        },
+    )
+    assert response.status_code == 422
+
+
+def test_audit_github_url_success(monkeypatch, tmp_path: Path):
+    _mock_github_clone(monkeypatch, tmp_path, SAMPLE_GOOD_REPO)
+    response = client.post(
+        "/api/audits",
+        json={
             "source_type": "github_url",
             "source_value": "https://github.com/owner/repo",
         },
     )
-    assert response.status_code == 422
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert data["source_type"] == "github_url"
+    assert data["source_value"] == "https://github.com/owner/repo"
+    assert "audit" in data
+
+
+def test_audit_github_url_with_git_suffix_success(monkeypatch, tmp_path: Path):
+    _mock_github_clone(monkeypatch, tmp_path, SAMPLE_GOOD_REPO)
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "github_url",
+            "source_value": "https://github.com/owner/repo.git",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["source_type"] == "github_url"
+
+
+def test_audit_github_url_invalid():
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "github_url",
+            "source_value": "not-a-url",
+        },
+    )
+    assert response.status_code == 400
+    detail = response.json()["detail"].lower()
+    assert "github" in detail or "invalid" in detail
+
+
+def test_audit_github_url_non_github():
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "github_url",
+            "source_value": "https://gitlab.com/owner/repo",
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_audit_github_url_ssh_scheme_rejected():
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "github_url",
+            "source_value": "git@github.com:owner/repo.git",
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_audit_github_url_file_scheme_rejected():
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "github_url",
+            "source_value": "file:///etc/passwd",
+        },
+    )
+    assert response.status_code == 400
+
+
+def test_audit_github_url_clone_failure(monkeypatch, tmp_path: Path):
+    def fake_create_temp_workspace(prefix: str = "drrepo-") -> Path:
+        return tmp_path
+
+    def fake_clone_public_github_repo(url: str, workspace_path: Path, timeout_seconds: int = 60) -> Path:
+        raise RuntimeError("git clone failed: repository not found")
+
+    def fake_cleanup_workspace(path: Path) -> None:
+        return
+
+    monkeypatch.setattr("drrepo.input.workspace.create_temp_workspace", fake_create_temp_workspace)
+    monkeypatch.setattr("drrepo.input.workspace.clone_public_github_repo", fake_clone_public_github_repo)
+    monkeypatch.setattr("drrepo.input.workspace.cleanup_workspace", fake_cleanup_workspace)
+
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "github_url",
+            "source_value": "https://github.com/owner/missing-repo",
+        },
+    )
+    assert response.status_code == 400
+    detail = response.json()["detail"].lower()
+    assert "clone" in detail or "not found" in detail
 
 
 def test_audit_ai_not_supported(tmp_path: Path):

@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any
 
 
 def run_audit_service(
+    source_type: str,
     source_value: str,
     profile_id: str = "student_portfolio",
     ai: bool = False,
@@ -16,9 +18,42 @@ def run_audit_service(
 
     validate_profile_id(profile_id)
 
+    workspace: Path | None = None
+    audit_path: str | Path
+
+    if source_type == "local_path":
+        audit_path = source_value
+    elif source_type == "github_url":
+        from drrepo.input.git import is_public_github_repo_url
+        from drrepo.input.workspace import (
+            cleanup_workspace,
+            clone_public_github_repo,
+            create_temp_workspace,
+        )
+
+        if not is_public_github_repo_url(source_value):
+            raise ValueError(
+                f"Invalid or unsupported GitHub repository URL: {source_value}"
+            )
+
+        workspace = create_temp_workspace()
+        try:
+            audit_path = clone_public_github_repo(source_value, workspace)
+        except Exception:
+            cleanup_workspace(workspace)
+            raise
+    else:
+        raise ValueError(f"Unsupported source_type: {source_type}")
+
     from drrepo.audit import build_audit
 
-    audit = build_audit(source_value)
+    try:
+        audit = build_audit(audit_path)
+    finally:
+        if workspace is not None:
+            from drrepo.input.workspace import cleanup_workspace
+
+            cleanup_workspace(workspace)
 
     from drrepo.advisor.service import build_advisor_result
 
@@ -35,8 +70,8 @@ def run_audit_service(
 
     return {
         "status": audit.get("status", "ok"),
-        "source_type": "local_path",
-        "source_value": str(source_value),
+        "source_type": source_type,
+        "source_value": source_value,
         "profile_id": profile_id,
         "audit": audit,
         "advisor": advisor_report,

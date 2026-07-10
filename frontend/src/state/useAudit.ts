@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import type { AuditResponse, ProfileInfo } from '../types/api'
+import type { AuditResponse, ProfileInfo, SourceType } from '../types/api'
 import { runAudit } from '../api/client'
 
 type AuditStatus = 'idle' | 'loading' | 'error' | 'done'
@@ -18,11 +18,16 @@ export function useAudit() {
   })
 
   const execute = useCallback(
-    async (sourceValue: string, profileId: string, includeMarkdown: boolean) => {
+    async (
+      sourceType: SourceType,
+      sourceValue: string,
+      profileId: string,
+      includeMarkdown: boolean
+    ) => {
       setState({ status: 'loading', data: null, error: null })
       try {
         const data = await runAudit({
-          source_type: 'local_path',
+          source_type: sourceType,
           source_value: sourceValue,
           profile_id: profileId,
           ai: false,

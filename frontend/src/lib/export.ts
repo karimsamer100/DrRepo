@@ -1,13 +1,29 @@
-export function safeFilenameBase(sourceValue: string): string {
-  const slug = sourceValue
-    .replace(/\\/g, '/')
-    .split('/')
-    .pop()
-    ?.replace(/[^a-zA-Z0-9_-]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 40)
+function repoSlug(sourceValue: string): string {
+  let candidate = sourceValue.trim()
 
-  return slug && slug.length > 0 ? slug : 'audit'
+  try {
+    const url = new URL(candidate)
+    // Strip query/fragment and trailing slashes, then drop a .git suffix.
+    candidate = url.pathname.replace(/\.git$/i, '').replace(/\/+$/, '')
+  } catch {
+    // Not a URL; use the raw value.
+  }
+
+  return (
+    candidate
+      .replace(/\\/g, '/')
+      .split('/')
+      .pop()
+      ?.replace(/\.git$/i, '')
+      ?.replace(/[^a-zA-Z0-9_-]+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 40) || ''
+  )
+}
+
+export function safeFilenameBase(sourceValue: string): string {
+  const slug = repoSlug(sourceValue)
+  return slug.length > 0 ? slug : 'audit'
 }
 
 export function timestampSuffix(): string {

@@ -4,8 +4,7 @@ import re
 from typing import Any
 
 
-_HTTPS_RE = re.compile(r"^https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$")
-_SSH_RE = re.compile(r"^git@github\.com:([^/]+)/([^/]+?)(?:\.git)?$")
+_HTTPS_RE = re.compile(r"^https://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$")
 
 
 def is_public_github_repo_url(value: Any) -> bool:
@@ -15,8 +14,8 @@ def is_public_github_repo_url(value: Any) -> bool:
     if not v:
         return False
     # reject credentials in URL
-    if "@" in v and v.startswith("https://"):
-        # looks like https://user:token@github.com/...
+    if "@" in v:
+        # looks like https://user:token@github.com/... or any SSH-style form
         return False
     # Reject obvious issue/pull/blob/tree paths by extra segments
     m = _HTTPS_RE.match(v)
@@ -26,11 +25,6 @@ def is_public_github_repo_url(value: Any) -> bool:
         if owner and repo and "/" not in repo:
             return True
         return False
-    # SSH form
-    m2 = _SSH_RE.match(v)
-    if m2:
-        owner, repo = m2.group(1), m2.group(2)
-        return bool(owner and repo)
     return False
 
 
@@ -44,14 +38,6 @@ def normalize_github_repo_url(value: Any) -> str:
     m = _HTTPS_RE.match(v)
     if m:
         owner, repo = m.group(1), m.group(2)
-        # remove the exact suffix ".git" only (don't use rstrip)
-        if repo.endswith(".git"):
-            repo = repo[:-4]
-        return f"https://github.com/{owner}/{repo}.git"
-
-    m2 = _SSH_RE.match(v)
-    if m2:
-        owner, repo = m2.group(1), m2.group(2)
         # remove the exact suffix ".git" only (don't use rstrip)
         if repo.endswith(".git"):
             repo = repo[:-4]

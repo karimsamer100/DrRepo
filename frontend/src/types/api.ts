@@ -133,8 +133,10 @@ export interface AdvisorReport {
   summary_lines?: string[]
 }
 
+export type SourceType = 'local_path' | 'github_url'
+
 export interface AuditRequest {
-  source_type: 'local_path'
+  source_type: SourceType
   source_value: string
   profile_id: string
   ai: false

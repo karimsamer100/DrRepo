@@ -81,6 +81,7 @@ async def profiles():
 async def audits(request: AuditRequest):
     try:
         result = run_audit_service(
+            source_type=request.source_type,
             source_value=request.source_value,
             profile_id=request.profile_id,
             ai=request.ai,
@@ -88,6 +89,8 @@ async def audits(request: AuditRequest):
         )
         return AuditResponse(**result)
     except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except FileNotFoundError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

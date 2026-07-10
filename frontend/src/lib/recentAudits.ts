@@ -1,4 +1,7 @@
+import type { SourceType } from '../types/api'
+
 export interface RecentAudit {
+  sourceType: SourceType
   sourceLabel: string
   profile: string
   createdAt: string

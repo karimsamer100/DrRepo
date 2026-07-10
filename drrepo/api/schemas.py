@@ -21,7 +21,7 @@ class ProfilesResponse(BaseModel):
 
 
 class AuditRequest(BaseModel):
-    source_type: Literal["local_path"]
+    source_type: Literal["local_path", "github_url"]
     source_value: str = Field(..., min_length=1)
     profile_id: str = "student_portfolio"
     ai: bool = False
