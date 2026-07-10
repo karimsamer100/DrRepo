@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 import shutil
+import stat
 import subprocess
 import tempfile
 from pathlib import Path
@@ -35,6 +37,22 @@ def _is_safe_to_delete(path: Path) -> bool:
     return True
 
 
+def _remove_readonly(func: callable, path: str, excinfo: tuple) -> None:
+    """Callback for shutil.rmtree onerror: make the path writable and retry."""
+    exc = excinfo[1] if isinstance(excinfo, tuple) else excinfo
+    if isinstance(exc, (PermissionError, OSError)):
+        try:
+            os.chmod(path, stat.S_IWRITE | stat.S_IREAD)
+        except Exception:
+            pass
+        try:
+            func(path)
+        except Exception:
+            pass
+    else:
+        raise
+
+
 def cleanup_workspace(path: Path) -> None:
     if not isinstance(path, Path):
         path = Path(path)
@@ -42,7 +60,7 @@ def cleanup_workspace(path: Path) -> None:
         return
     if not _is_safe_to_delete(path):
         raise ValueError(f"Refusing to delete unsafe path: {path}")
-    shutil.rmtree(path)
+    shutil.rmtree(path, onerror=_remove_readonly)
 
 
 def clone_public_github_repo(url: str, workspace: Path, timeout_seconds: int = 60) -> Path:

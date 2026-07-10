@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import os
 import shutil
+import stat
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -326,6 +327,69 @@ def test_missing_dist_root_message(tmp_path: Path, monkeypatch):
     data = response.json()
     assert "Frontend build not found" in data["message"]
     assert "npm run build" in data["message"]
+
+
+def test_cleanup_workspace_removes_read_only_files(tmp_path: Path):
+    from drrepo.input.workspace import cleanup_workspace
+
+    d = tmp_path / "readonly_dir"
+    d.mkdir()
+    f = d / "readonly.idx"
+    f.write_text("packed")
+    os.chmod(f, stat.S_IREAD)  # Remove write permission
+    os.chmod(d, stat.S_IREAD | stat.S_IXUSR)  # Remove write on dir
+
+    cleanup_workspace(d)
+    assert not d.exists()
+
+
+def test_cleanup_workspace_silent_on_missing(tmp_path: Path):
+    from drrepo.input.workspace import cleanup_workspace
+
+    missing = tmp_path / "does_not_exist"
+    cleanup_workspace(missing)  # Should not raise
+
+
+def test_audit_github_url_cleanup_failure_still_returns_200(
+    monkeypatch, tmp_path: Path
+):
+    """Simulate a PermissionError during cleanup after a successful clone+audit."""
+    repo_path = tmp_path / "repo"
+    shutil.copytree(SAMPLE_GOOD_REPO, repo_path)
+
+    def fake_create_temp_workspace(prefix: str = "drrepo-") -> Path:
+        return tmp_path
+
+    def fake_clone_public_github_repo(
+        url: str, workspace_path: Path, timeout_seconds: int = 60
+    ) -> Path:
+        return repo_path
+
+    def failing_cleanup(path: Path) -> None:
+        raise PermissionError("Access is denied")
+
+    monkeypatch.setattr(
+        "drrepo.input.workspace.create_temp_workspace", fake_create_temp_workspace
+    )
+    monkeypatch.setattr(
+        "drrepo.input.workspace.clone_public_github_repo",
+        fake_clone_public_github_repo,
+    )
+    monkeypatch.setattr(
+        "drrepo.input.workspace.cleanup_workspace", failing_cleanup
+    )
+
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "github_url",
+            "source_value": "https://github.com/owner/repo",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "ok"
+    assert "audit" in data
 
 
 def test_api_routes_not_swallowed_by_fallback(tmp_path: Path, monkeypatch):

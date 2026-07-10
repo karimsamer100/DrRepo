@@ -53,7 +53,12 @@ def run_audit_service(
         if workspace is not None:
             from drrepo.input.workspace import cleanup_workspace
 
-            cleanup_workspace(workspace)
+            try:
+                cleanup_workspace(workspace)
+            except Exception:
+                # Best-effort cleanup: a failure here (e.g. Windows file lock)
+                # must not override a successful audit response.
+                pass
 
     from drrepo.advisor.service import build_advisor_result
 
