@@ -1,14 +1,27 @@
 from __future__ import annotations
 
+import importlib
+import os
 from pathlib import Path
 
 from fastapi.testclient import TestClient
 
+import drrepo.api.app as app_module
 from drrepo.api.app import app
 
 client = TestClient(app)
 
 SAMPLE_GOOD_REPO = str(Path(__file__).resolve().parent.parent / "examples" / "sample_good_repo")
+
+
+def _make_client(monkeypatch, dist_path: str | None):
+    """Create a fresh TestClient with the requested frontend dist path."""
+    if dist_path is not None:
+        monkeypatch.setenv("DRREPO_FRONTEND_DIST", dist_path)
+    else:
+        monkeypatch.delenv("DRREPO_FRONTEND_DIST", raising=False)
+    importlib.reload(app_module)
+    return TestClient(app_module.app)
 
 
 def test_health():
@@ -147,3 +160,68 @@ def test_cors_allows_dev_origin():
 
     get_response = client.get("/api/profiles", headers={"Origin": origin})
     assert get_response.headers.get("access-control-allow-origin") == origin
+
+
+def test_root_serves_index_when_dist_exists(tmp_path: Path, monkeypatch):
+    index = tmp_path / "index.html"
+    index.write_text("<!doctype html><html><body>DrRepo</body></html>", encoding="utf-8")
+
+    test_client = _make_client(monkeypatch, str(tmp_path))
+    response = test_client.get("/")
+    assert response.status_code == 200
+    assert "DrRepo" in response.text
+
+
+def test_static_assets_served_when_dist_exists(tmp_path: Path, monkeypatch):
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "app.js").write_text("console.log('drrepo')", encoding="utf-8")
+    (tmp_path / "index.html").write_text("<html></html>", encoding="utf-8")
+
+    test_client = _make_client(monkeypatch, str(tmp_path))
+    response = test_client.get("/assets/app.js")
+    assert response.status_code == 200
+    assert "drrepo" in response.text
+    assert response.headers.get("content-type") == "text/javascript; charset=utf-8"
+
+
+def test_spa_fallback_returns_index(tmp_path: Path, monkeypatch):
+    index = tmp_path / "index.html"
+    index.write_text("<!doctype html><html><body>SPA</body></html>", encoding="utf-8")
+
+    test_client = _make_client(monkeypatch, str(tmp_path))
+    response = test_client.get("/some/spa/route")
+    assert response.status_code == 200
+    assert "SPA" in response.text
+
+
+def test_missing_dist_root_message(tmp_path: Path, monkeypatch):
+    missing_dist = tmp_path / "not_a_dist"
+    test_client = _make_client(monkeypatch, str(missing_dist))
+    response = test_client.get("/")
+    assert response.status_code == 200
+    data = response.json()
+    assert "Frontend build not found" in data["message"]
+    assert "npm run build" in data["message"]
+
+
+def test_api_routes_not_swallowed_by_fallback(tmp_path: Path, monkeypatch):
+    index = tmp_path / "index.html"
+    index.write_text("<!doctype html><html><body>SPA</body></html>", encoding="utf-8")
+
+    test_client = _make_client(monkeypatch, str(tmp_path))
+
+    health = test_client.get("/health")
+    assert health.status_code == 200
+    assert health.json()["status"] == "ok"
+
+    profiles = test_client.get("/api/profiles")
+    assert profiles.status_code == 200
+    assert "profiles" in profiles.json()
+
+    audit = test_client.post(
+        "/api/audits",
+        json={"source_type": "local_path", "source_value": SAMPLE_GOOD_REPO},
+    )
+    assert audit.status_code == 200
+    assert "audit" in audit.json()

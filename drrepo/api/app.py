@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import mimetypes
 import os
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from drrepo.advisor.profiles import list_profiles
 from drrepo.api.schemas import (
@@ -14,6 +18,28 @@ from drrepo.api.schemas import (
     ProfilesResponse,
 )
 from drrepo.api.service import run_audit_service
+
+# Ensure common static assets are served with correct MIME types even on
+# systems where the registry / mime.types file is incomplete.
+mimetypes.add_type("text/javascript", ".js")
+mimetypes.add_type("text/css", ".css")
+
+
+class SPAStaticFiles(StaticFiles):
+    """StaticFiles subclass that falls back to index.html for non-asset paths.
+
+    This preserves the standard SPA behavior: API routes are registered first
+    and take precedence, while any browser route that does not map to a real
+    file (and has no file extension) is served the root index.html.
+    """
+
+    async def get_response(self, path: str, scope):
+        try:
+            return await super().get_response(path, scope)
+        except StarletteHTTPException as exc:
+            if exc.status_code == 404 and self.html and not Path(path).suffix:
+                return await super().get_response("index.html", scope)
+            raise
 
 app = FastAPI(title="DrRepo API", version="0.1.0")
 
@@ -30,7 +56,6 @@ app.add_middleware(
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type"],
 )
-
 
 @app.get("/health", response_model=HealthCheckResponse)
 async def health():
@@ -68,3 +93,18 @@ async def audits(request: AuditRequest):
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except NotADirectoryError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+_default_frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"
+_frontend_dist_env = os.getenv("DRREPO_FRONTEND_DIST", str(_default_frontend_dist))
+frontend_dist = Path(_frontend_dist_env) if _frontend_dist_env else None
+
+if frontend_dist and frontend_dist.is_dir():
+    app.mount("/", SPAStaticFiles(directory=frontend_dist, html=True), name="frontend")
+else:
+
+    @app.get("/")
+    async def root_frontend_missing():
+        return {
+            "message": "Frontend build not found. Run cd frontend && npm run build."
+        }
