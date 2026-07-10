@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { AuditConsoleHeader } from './components/AuditConsoleHeader'
 import { Sidebar } from './components/Sidebar'
 import { AuditInputCard } from './components/AuditInputCard'
@@ -8,10 +9,36 @@ import { FindingsList } from './components/FindingsList'
 import { AdvisorPanel } from './components/AdvisorPanel'
 import { MarkdownPreview } from './components/MarkdownPreview'
 import { MetadataCard } from './components/MetadataCard'
+import { ExportActions } from './components/ExportActions'
 import { useAudit } from './state/useAudit'
+import type { RecentAudit } from './lib/recentAudits'
+import {
+  addRecentAudit,
+  clearRecentAudits,
+  loadRecentAudits,
+} from './lib/recentAudits'
 
 export default function App() {
   const { state, execute, reset } = useAudit()
+  const [recentAudits, setRecentAudits] = useState<RecentAudit[]>([])
+
+  useEffect(() => {
+    setRecentAudits(loadRecentAudits())
+  }, [])
+
+  useEffect(() => {
+    if (state.status !== 'done' || !state.data) return
+
+    const item: RecentAudit = {
+      sourceLabel: state.data.source_value,
+      profile: state.data.profile_id,
+      createdAt: new Date().toISOString(),
+      overallScore: state.data.audit.scoring?.overall_score ?? null,
+      verdictLabel: state.data.audit.diagnosis?.repository_health?.label ?? null,
+    }
+
+    setRecentAudits((current) => addRecentAudit(current, item))
+  }, [state.status, state.data])
 
   const analyzerSections =
     state.status === 'done' && state.data
@@ -25,6 +52,10 @@ export default function App() {
   const metadata = state.status === 'done' && state.data ? state.data.audit.metadata : undefined
   const markdown = state.status === 'done' && state.data ? state.data.markdown : null
 
+  const handleClearRecent = () => {
+    setRecentAudits(clearRecentAudits())
+  }
+
   return (
     <div className="flex h-screen w-full bg-base text-primary antialiased">
       <Sidebar onReset={reset} />
@@ -34,7 +65,11 @@ export default function App() {
           <div className="mx-auto max-w-6xl">
             {state.status === 'idle' && (
               <div className="flex items-center justify-center min-h-[60vh]">
-                <AuditInputCard onSubmit={execute} />
+                <AuditInputCard
+                  onSubmit={execute}
+                  recentAudits={recentAudits}
+                  onClearRecent={handleClearRecent}
+                />
               </div>
             )}
 
@@ -81,6 +116,7 @@ export default function App() {
                   </div>
                   <div className="col-span-1">
                     <div className="lg:sticky lg:top-6 space-y-6">
+                      <ExportActions data={state.data} />
                       <AnalyzerStatusGrid sections={analyzerSections} />
                       <MetadataCard metadata={metadata} />
                       <MarkdownPreview content={markdown} />
@@ -96,6 +132,7 @@ export default function App() {
                     advisor={state.data.advisor}
                     profileId={state.data.profile_id}
                   />
+                  <ExportActions data={state.data} />
                   <AnalyzerStatusGrid sections={analyzerSections} />
                   <MetadataCard metadata={metadata} />
                   <MarkdownPreview content={markdown} />

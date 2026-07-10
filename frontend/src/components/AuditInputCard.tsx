@@ -1,15 +1,26 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import type { ProfileInfo } from '../types/api'
 import { listProfiles } from '../api/client'
+import type { RecentAudit } from '../lib/recentAudits'
+import { RecentAudits } from './RecentAudits'
 
 interface AuditInputCardProps {
   onSubmit: (sourceValue: string, profileId: string, includeMarkdown: boolean) => void
+  recentAudits?: RecentAudit[]
+  onSelectRecent?: (item: RecentAudit) => void
+  onClearRecent?: () => void
   disabled?: boolean
 }
 
 const EXAMPLE_PATH = 'examples/sample_good_repo'
 
-export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
+export function AuditInputCard({
+  onSubmit,
+  recentAudits = [],
+  onSelectRecent,
+  onClearRecent,
+  disabled,
+}: AuditInputCardProps) {
   const [profiles, setProfiles] = useState<ProfileInfo[]>([])
   const [sourceValue, setSourceValue] = useState('')
   const [profileId, setProfileId] = useState('student_portfolio')
@@ -46,6 +57,14 @@ export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
     if (canSubmit) {
       onSubmit(sourceValue.trim(), profileId, includeMarkdown)
     }
+  }
+
+  const handleSelectRecent = (item: RecentAudit) => {
+    setSourceValue(item.sourceLabel)
+    if (profiles.some((p) => p.profile_id === item.profile)) {
+      setProfileId(item.profile)
+    }
+    onSelectRecent?.(item)
   }
 
   return (
@@ -140,8 +159,8 @@ export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
           </button>
         </form>
 
-        <div className="lg:col-span-1">
-          <div className="rounded-xl border border-border bg-surface p-5 h-full">
+        <div className="lg:col-span-1 space-y-6">
+          <div className="rounded-xl border border-border bg-surface p-5">
             <h3 className="text-xs font-medium text-muted mb-4">How it works</h3>
             <ol className="space-y-4">
               <li className="flex items-start gap-3">
@@ -164,6 +183,12 @@ export function AuditInputCard({ onSubmit, disabled }: AuditInputCardProps) {
               </li>
             </ol>
           </div>
+
+          <RecentAudits
+            items={recentAudits}
+            onSelect={handleSelectRecent}
+            onClear={onClearRecent ?? (() => {})}
+          />
         </div>
       </div>
     </div>
