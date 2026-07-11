@@ -58,6 +58,30 @@ def test_build_audit_passes_detected_root(monkeypatch, tmp_path: Path):
     assert str(captured.get("repo_path")) == str(project_root)
 
 
+def test_build_audit_can_disable_test_execution(monkeypatch, tmp_path: Path):
+    captured = {}
+
+    monkeypatch.setattr("drrepo.audit.run_static_analyzers", lambda p: [ToolResult(tool="ruff", status="completed")])
+
+    def fake_test(p, *, execute_tests=True):
+        captured["execute_tests"] = execute_tests
+        return [
+            ToolResult(
+                tool="pytest",
+                status="skipped_by_config",
+                summary={"reason": "Skipped for remote GitHub audit safety."},
+            )
+        ]
+
+    monkeypatch.setattr("drrepo.audit.run_test_analyzers", fake_test)
+    monkeypatch.setattr("drrepo.audit.run_repository_analyzers", lambda p: [ToolResult(tool="readme", status="completed")])
+
+    result = build_audit(tmp_path, execute_tests=False)
+
+    assert captured["execute_tests"] is False
+    assert result["test_analysis"][0]["status"] == "skipped_by_config"
+
+
 def test_build_audit_scoring(monkeypatch, tmp_path: Path):
     # static: no findings
     monkeypatch.setattr("drrepo.audit.run_static_analyzers", lambda p: [ToolResult(tool="ruff", status="completed")])
@@ -81,7 +105,8 @@ def test_build_audit_scoring(monkeypatch, tmp_path: Path):
     assert sections["static_analysis"]["score"] == 100
     assert sections["test_analysis"]["score"] == 85
     assert sections["repository_analysis"]["score"] == 97
-    assert out["scoring"]["overall_score"] == 94
+    assert out["scoring"]["overall_score"] == 79
+    assert out["diagnosis"]["repository_health"]["label"] == "needs_attention"
 
 
 def test_build_audit_invalid_path_raises():

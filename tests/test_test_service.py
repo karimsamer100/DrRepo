@@ -28,6 +28,20 @@ def test_run_test_analyzers_preserves_not_applicable(monkeypatch, tmp_path):
     assert res[1].status == "not_available"
 
 
+def test_run_test_analyzers_can_skip_execution_for_remote_safety(monkeypatch, tmp_path):
+    def fail_if_called(path):
+        raise AssertionError("test-executing analyzer should not run")
+
+    monkeypatch.setattr(test_service, "run_pytest", fail_if_called)
+    monkeypatch.setattr(test_service, "run_coverage", fail_if_called)
+
+    res = test_service.run_test_analyzers(tmp_path, execute_tests=False)
+
+    assert [r.tool for r in res] == ["pytest", "coverage"]
+    assert all(r.status == "skipped_by_config" for r in res)
+    assert all(r.summary["reason"] == "Skipped for remote GitHub audit safety." for r in res)
+
+
 def test_run_test_analyzers_catches_exceptions(monkeypatch, tmp_path):
     def boom(p):
         raise RuntimeError("boom")

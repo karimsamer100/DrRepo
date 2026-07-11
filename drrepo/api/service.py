@@ -48,7 +48,7 @@ def run_audit_service(
     from drrepo.audit import build_audit
 
     try:
-        audit = build_audit(audit_path)
+        audit = build_audit(audit_path, execute_tests=(source_type != "github_url"))
     finally:
         if workspace is not None:
             from drrepo.input.workspace import cleanup_workspace
@@ -59,6 +59,9 @@ def run_audit_service(
                 # Best-effort cleanup: a failure here (e.g. Windows file lock)
                 # must not override a successful audit response.
                 pass
+
+    if source_type == "github_url":
+        audit["source"] = {"type": source_type, "value": source_value}
 
     from drrepo.advisor.service import build_advisor_result
 

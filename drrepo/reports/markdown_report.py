@@ -22,12 +22,33 @@ def _count_findings(tool_entry: Dict[str, Any]) -> int:
 
 
 def _count_errors(tool_entry: Dict[str, Any]) -> int:
+    if tool_entry.get("status") in {"not_available", "skipped_by_config"}:
+        return 0
     errors = tool_entry.get("errors")
     if errors is None:
         return 0
     if isinstance(errors, list):
         return len(errors)
     return 0
+
+
+def _limitation_reason(entry: Dict[str, Any]) -> str | None:
+    tool = entry.get("tool") or entry.get("name") or "unknown"
+    status = entry.get("status")
+    summary = entry.get("summary") if isinstance(entry.get("summary"), dict) else {}
+    if status == "skipped_by_config":
+        reason = summary.get("reason") or "Skipped by configuration."
+        return f"{tool}: {reason}"
+    if status == "not_available":
+        return f"{tool}: tool unavailable in this environment."
+    return None
+
+
+def _genuine_errors(entry: Dict[str, Any]) -> List[str]:
+    if entry.get("status") not in {"failed_to_run", "partial"}:
+        return []
+    errors = entry.get("errors") or []
+    return [str(error) for error in errors if str(error).strip()] if isinstance(errors, list) else []
 
 
 def render_markdown_report(audit: Dict[str, Any]) -> str:
@@ -46,8 +67,13 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
     # Repository
     lines.append("## Repository")
     path = _safe_get(audit, "path", "N/A")
+    source = _safe_get(audit, "source", {}) or {}
+    source_value = _safe_get(source, "value")
     status = _safe_get(audit, "status", "N/A")
-    lines.append(f"- **Path**: {path}")
+    if source_value:
+        lines.append(f"- **Source**: {source_value}")
+    else:
+        lines.append(f"- **Path**: {path}")
     lines.append(f"- **Status**: {status}")
 
     # Score Summary
@@ -91,11 +117,36 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
     summary_text = _safe_get(repo_health, "summary", "N/A")
     hard_flags = _safe_get(diagnosis, "hard_flags", []) or []
     limitations = _safe_get(diagnosis, "limitations", []) or []
+    evidence_confidence = _safe_get(diagnosis, "evidence_confidence", {}) or {}
 
     lines.append(f"- Label: {label}")
     lines.append(f"- Summary: {summary_text}")
     lines.append(f"- Hard flags: {', '.join(hard_flags) if hard_flags else 'None'}")
     lines.append(f"- Limitations: {', '.join(limitations) if limitations else 'None'}")
+    if evidence_confidence:
+        evidence_label = _safe_get(evidence_confidence, "label", "unknown")
+        evidence_summary = _safe_get(evidence_confidence, "summary", "")
+        if evidence_summary:
+            lines.append(f"- Evidence confidence: {evidence_label}; {evidence_summary}")
+        else:
+            lines.append(f"- Evidence confidence: {evidence_label}")
+
+    lines.append("")
+    lines.append("## Evidence Limitations / Unavailable Tools")
+    evidence_limitations: List[str] = []
+    for sec in ("static_analysis", "test_analysis", "repository_analysis"):
+        entries = _safe_get(audit, sec, []) or []
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            reason = _limitation_reason(entry)
+            if reason:
+                evidence_limitations.append(reason)
+    if evidence_limitations:
+        for reason in evidence_limitations:
+            lines.append(f"- {reason}")
+    else:
+        lines.append("None")
 
     # Metadata Summary
     lines.append("")
@@ -219,7 +270,7 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
             continue
         for entry in entries:
             tool = entry.get("tool") or entry.get("name") or sec
-            errors = entry.get("errors") or []
+            errors = _genuine_errors(entry)
             if errors:
                 any_errors = True
                 lines.append(f"### {sec} / {tool}")

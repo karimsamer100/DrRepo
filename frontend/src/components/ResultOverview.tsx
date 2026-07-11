@@ -40,12 +40,14 @@ export function ResultOverview({ data }: ResultOverviewProps) {
   const scoring = data.audit.scoring
   const diagnosis = data.audit.diagnosis
   const hardFlags = diagnosis?.hard_flags || []
+  const evidenceConfidence = diagnosis?.evidence_confidence
+  const evidenceTitle =
+    evidenceConfidence?.label === 'limited' ? 'Limited evidence' : 'Partial evidence'
 
   const families = getFindingFamilies(data.audit)
   const issueFamilies = families.filter((f) => f.count > 0)
   const hasIssues = hardFlags.length > 0 || issueFamilies.length > 0
-  const isHealthy =
-    (scoring?.overall_score ?? 0) >= 85 && !hasIssues
+  const isHealthy = diagnosis?.repository_health?.label === 'healthy' && !hasIssues
 
   const categories = scoring?.categories || {}
   const categoryEntries = Object.entries(categories).filter(
@@ -79,10 +81,19 @@ export function ResultOverview({ data }: ResultOverviewProps) {
         </div>
       )}
 
+      {evidenceConfidence && evidenceConfidence.label !== 'full' && (
+        <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
+          <div className="text-[11px] font-medium uppercase tracking-wider text-warning mb-2">
+            {evidenceTitle}
+          </div>
+          <p className="text-sm text-primary">{evidenceConfidence.summary}</p>
+        </div>
+      )}
+
       {isHealthy && (
         <div className="rounded-md border border-health/30 bg-health/5 p-3">
           <p className="text-sm text-health">
-            Core checks look good — no critical issues detected.
+            Core checks look good - no critical issues detected.
           </p>
         </div>
       )}
@@ -116,7 +127,12 @@ export function ResultOverview({ data }: ResultOverviewProps) {
       </div>
 
       <div className="space-y-3">
-        <ScoreCard title="Overall score" score={scoring?.overall_score} size="hero" />
+        <ScoreCard
+          title="Overall score"
+          score={scoring?.overall_score}
+          label={diagnosis?.repository_health?.label}
+          size="hero"
+        />
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <ScoreCard title="Repository Health" score={scoring?.repository_health_score} />
           <ScoreCard title="Portfolio Readiness" score={scoring?.portfolio_readiness_score} />

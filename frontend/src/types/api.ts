@@ -59,10 +59,18 @@ export interface RepositoryHealth {
   summary?: string
 }
 
+export interface EvidenceConfidence {
+  label?: 'full' | 'partial' | 'limited' | string
+  summary?: string
+  available_optional_tools?: string[]
+  missing_optional_tools?: string[]
+}
+
 export interface Diagnosis {
   repository_health?: RepositoryHealth
   hard_flags?: string[]
   limitations?: string[]
+  evidence_confidence?: EvidenceConfidence
 }
 
 export interface RemediationSuggestion {
@@ -89,6 +97,10 @@ export interface AuditMetadata {
 export interface Audit {
   status?: string
   path?: string
+  source?: {
+    type?: string
+    value?: string
+  }
   metadata?: AuditMetadata
   static_analysis?: ToolResult[]
   test_analysis?: ToolResult[]

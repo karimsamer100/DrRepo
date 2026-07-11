@@ -9,9 +9,29 @@ from .pytest_runner import run_pytest
 from .coverage_runner import run_coverage
 
 
-def run_test_analyzers(path: str | Path) -> List[ToolResult]:
+REMOTE_TEST_SKIP_REASON = "Skipped for remote GitHub audit safety."
+
+
+def _skipped_remote_test_result(tool: str) -> ToolResult:
+    return make_tool_result(
+        tool,
+        "skipped_by_config",
+        summary={"reason": REMOTE_TEST_SKIP_REASON, "outcome": "skipped_for_remote_safety"},
+        findings=[],
+        errors=[],
+        raw_output=None,
+    )
+
+
+def run_test_analyzers(path: str | Path, *, execute_tests: bool = True) -> List[ToolResult]:
     # Validate path; allow resolver errors to propagate so caller can handle them
     resolved = resolve_local_path(path)
+
+    if not execute_tests:
+        return [
+            _skipped_remote_test_result("pytest"),
+            _skipped_remote_test_result("coverage"),
+        ]
 
     results: List[ToolResult] = []
 

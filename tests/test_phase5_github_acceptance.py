@@ -55,7 +55,8 @@ def test_github_url_audit_json(monkeypatch, tmp_path):
         repo.mkdir()
         return repo
 
-    def fake_build(path):
+    def fake_build(path, **kwargs):
+        called["execute_tests"] = kwargs.get("execute_tests")
         called['build'] = str(path)
         out = dict(MINIMAL_AUDIT)
         out['path'] = str(path)
@@ -77,6 +78,7 @@ def test_github_url_audit_json(monkeypatch, tmp_path):
     assert called.get('create')
     assert called.get('clone') == url
     assert called.get('build')
+    assert called.get("execute_tests") is False
     assert called.get('cleanup')
 
 
@@ -84,7 +86,7 @@ def test_github_url_audit_markdown(monkeypatch, tmp_path):
     url = 'https://github.com/Owner/Repo'
     monkeypatch.setattr('drrepo.cli.create_temp_workspace', lambda: tmp_path / 'ws')
     monkeypatch.setattr('drrepo.cli.clone_public_github_repo', lambda u, ws: tmp_path / 'ws' / 'repo')
-    monkeypatch.setattr('drrepo.cli.build_audit', lambda p: dict(MINIMAL_AUDIT, path=str(p)))
+    monkeypatch.setattr('drrepo.cli.build_audit', lambda p, **kwargs: dict(MINIMAL_AUDIT, path=str(p)))
     monkeypatch.setattr('drrepo.cli.cleanup_workspace', lambda p: None)
 
     result = runner.invoke(app, ['audit', url, '--format', 'markdown'])
@@ -99,7 +101,7 @@ def test_github_url_audit_summary(monkeypatch, tmp_path):
     url = 'https://github.com/Owner/Repo'
     monkeypatch.setattr('drrepo.cli.create_temp_workspace', lambda: tmp_path / 'ws')
     monkeypatch.setattr('drrepo.cli.clone_public_github_repo', lambda u, ws: tmp_path / 'ws' / 'repo')
-    monkeypatch.setattr('drrepo.cli.build_audit', lambda p: dict(MINIMAL_AUDIT, path=str(p)))
+    monkeypatch.setattr('drrepo.cli.build_audit', lambda p, **kwargs: dict(MINIMAL_AUDIT, path=str(p)))
     monkeypatch.setattr('drrepo.cli.cleanup_workspace', lambda p: None)
 
     result = runner.invoke(app, ['audit', url, '--format', 'summary'])
@@ -115,7 +117,7 @@ def test_github_url_supports_output_files(monkeypatch, tmp_path):
     url = 'https://github.com/Owner/Repo'
     monkeypatch.setattr('drrepo.cli.create_temp_workspace', lambda: tmp_path / 'ws')
     monkeypatch.setattr('drrepo.cli.clone_public_github_repo', lambda u, ws: tmp_path / 'ws' / 'repo')
-    monkeypatch.setattr('drrepo.cli.build_audit', lambda p: dict(MINIMAL_AUDIT, path=str(p)))
+    monkeypatch.setattr('drrepo.cli.build_audit', lambda p, **kwargs: dict(MINIMAL_AUDIT, path=str(p)))
     monkeypatch.setattr('drrepo.cli.cleanup_workspace', lambda p: None)
 
     # json
@@ -148,7 +150,7 @@ def test_cleanup_runs_after_success(monkeypatch, tmp_path):
     calls = {}
     monkeypatch.setattr('drrepo.cli.create_temp_workspace', lambda: tmp_path / 'ws')
     monkeypatch.setattr('drrepo.cli.clone_public_github_repo', lambda u, ws: tmp_path / 'ws' / 'repo')
-    monkeypatch.setattr('drrepo.cli.build_audit', lambda p: dict(MINIMAL_AUDIT, path=str(p)))
+    monkeypatch.setattr('drrepo.cli.build_audit', lambda p, **kwargs: dict(MINIMAL_AUDIT, path=str(p)))
 
     def fake_cleanup(p):
         calls['cleanup'] = str(p)
@@ -166,7 +168,7 @@ def test_cleanup_runs_if_build_fails(monkeypatch, tmp_path):
     monkeypatch.setattr('drrepo.cli.create_temp_workspace', lambda: tmp_path / 'ws')
     monkeypatch.setattr('drrepo.cli.clone_public_github_repo', lambda u, ws: tmp_path / 'ws' / 'repo')
 
-    def boom(path):
+    def boom(path, **kwargs):
         raise RuntimeError('audit failed')
 
     monkeypatch.setattr('drrepo.cli.build_audit', boom)

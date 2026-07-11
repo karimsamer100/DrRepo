@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import List, Dict, Any
 
 from drrepo.analyzers.models import ToolResult, ToolFinding
+from drrepo.assessment import cap_score_for_hard_flags, derive_hard_flags
 
 
 def severity_penalty(severity: str | None) -> int:
@@ -20,6 +21,26 @@ def severity_penalty(severity: str | None) -> int:
     return 2
 
 
+def status_penalty(result: ToolResult) -> int:
+    """Status penalties are about observed quality, not tool availability.
+
+    Missing optional tools do not reduce score. Test absence and intentional
+    remote safety skips are different: they mean DrRepo did not observe a
+    passing test signal, so the testing category must not look perfect.
+    """
+    if result.status == "failed_to_run":
+        return 10
+    if result.status == "partial":
+        return 5
+    if result.tool == "pytest" and result.status == "not_applicable":
+        outcome = (result.summary or {}).get("outcome") if isinstance(result.summary, dict) else None
+        if outcome == "no_tests":
+            return 30
+    if result.tool in {"pytest", "coverage"} and result.status == "skipped_by_config":
+        return 15
+    return 0
+
+
 def score_tool_results(results: List[ToolResult]) -> Dict[str, Any]:
     score = 100
     penalty_total = 0
@@ -33,12 +54,8 @@ def score_tool_results(results: List[ToolResult]) -> Dict[str, Any]:
             pen = severity_penalty(f.severity)
             penalty_total += pen
             finding_count += 1
-        # status penalties
-        if r.status == "failed_to_run":
-            penalty_total += 10
-        elif r.status == "partial":
-            penalty_total += 5
-        # do not penalize not_available or not_applicable
+        penalty_total += status_penalty(r)
+        # do not penalize not_available; it is confidence-limiting evidence
 
     final = max(0, min(100, score - penalty_total))
     return {
@@ -137,12 +154,18 @@ def score_audit_sections(
 
     # average of the three section scores (preserve existing overall behavior)
     avg = round((static_score["score"] + test_score["score"] + repo_score["score"]) / 3.0)
+    hard_flags = derive_hard_flags(list(static_analysis) + list(test_analysis) + list(repository_analysis))
+    repo_blocking_flags = [
+        flag
+        for flag in hard_flags
+        if flag not in {"README_INCOMPLETE", "STRUCTURE_INCOMPLETE"}
+    ]
 
     return {
-        "overall_score": int(avg),
+        "overall_score": int(cap_score_for_hard_flags(avg, hard_flags)),
         "sections": sec_scores,
         "categories": categories,
         "category_reasons": category_reasons,
-        "repository_health_score": repository_health_score,
-        "portfolio_readiness_score": portfolio_readiness_score,
+        "repository_health_score": int(cap_score_for_hard_flags(repository_health_score, repo_blocking_flags)),
+        "portfolio_readiness_score": int(cap_score_for_hard_flags(portfolio_readiness_score, hard_flags)),
     }

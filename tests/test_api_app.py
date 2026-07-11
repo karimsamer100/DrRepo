@@ -113,7 +113,14 @@ def test_audit_github_url_success(monkeypatch, tmp_path: Path):
     assert data["status"] == "ok"
     assert data["source_type"] == "github_url"
     assert data["source_value"] == "https://github.com/owner/repo"
+    assert data["audit"]["source"]["value"] == "https://github.com/owner/repo"
     assert "audit" in data
+    test_statuses = {entry["tool"]: entry["status"] for entry in data["audit"]["test_analysis"]}
+    assert test_statuses == {"pytest": "skipped_by_config", "coverage": "skipped_by_config"}
+    assert data["audit"]["scoring"]["categories"]["testing"] < 100
+    assert data["audit"]["diagnosis"]["evidence_confidence"]["label"] in {"partial", "limited"}
+    assert data["audit"]["diagnosis"]["evidence_confidence"]["skipped_optional_tools"] == ["coverage", "pytest"]
+    assert "Skipped for remote GitHub audit safety." in data["audit"]["diagnosis"]["limitations"]
 
 
 def test_audit_github_url_with_git_suffix_success(monkeypatch, tmp_path: Path):
@@ -230,6 +237,24 @@ def test_audit_include_markdown_success(tmp_path: Path):
     markdown = data.get("markdown")
     assert markdown is not None
     assert "# DrRepo Audit Report" in markdown
+
+
+def test_audit_github_url_markdown_prefers_original_source(monkeypatch, tmp_path: Path):
+    _mock_github_clone(monkeypatch, tmp_path, SAMPLE_GOOD_REPO)
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "github_url",
+            "source_value": "https://github.com/owner/repo",
+            "include_markdown": True,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["audit"]["path"] == str(tmp_path / "repo")
+    assert data["markdown"] is not None
+    assert "https://github.com/owner/repo" in data["markdown"]
+    assert str(tmp_path / "repo") not in data["markdown"]
 
 
 def test_audit_invalid_profile_id(tmp_path: Path):

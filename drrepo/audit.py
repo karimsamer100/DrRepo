@@ -19,7 +19,7 @@ from drrepo.diagnosis import build_diagnosis
 from drrepo.remediation.suggestions import generate_suggestions, count_suggestions_by_severity
 
 
-def build_audit(path: str | Path) -> Dict[str, Any]:
+def build_audit(path: str | Path, *, execute_tests: bool = True) -> Dict[str, Any]:
     """Build the full audit dictionary for the given path.
 
     This function resolves the path, scans the repository, runs analyzers,
@@ -33,7 +33,10 @@ def build_audit(path: str | Path) -> Dict[str, Any]:
     root = scanned["path"]
 
     static_results = run_static_analyzers(root)
-    test_results = run_test_analyzers(root)
+    if execute_tests:
+        test_results = run_test_analyzers(root)
+    else:
+        test_results = run_test_analyzers(root, execute_tests=False)
     repo_results = run_repository_analyzers(root)
 
     scoring = score_audit_sections(static_results, test_results, repo_results)

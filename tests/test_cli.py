@@ -135,8 +135,9 @@ def test_audit_includes_static_analysis(monkeypatch, tmp_path: Path):
     assert "repository_analysis" in out
     assert [t["tool"] for t in out["repository_analysis"]] == ["readme", "structure"]
     assert "scoring" in out
-    # Expected scores: static 100, test 85 (high finding -> -15), repo 97 (low finding -> -3)
-    assert out["scoring"]["overall_score"] == 94
+    # Raw section scores remain evidence-based, but the top-line score is capped
+    # because failing tests should not produce a healthy-looking verdict.
+    assert out["scoring"]["overall_score"] == 79
     assert out["scoring"]["sections"]["static_analysis"]["score"] == 100
     assert out["scoring"]["sections"]["test_analysis"]["score"] == 85
     assert out["scoring"]["sections"]["repository_analysis"]["score"] == 97

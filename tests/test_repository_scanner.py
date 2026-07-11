@@ -81,6 +81,16 @@ def test_find_repository_root_and_scan_from_nested(tmp_path: Path):
     assert any(m.lower().startswith("readme") for m in markers) or "README.md" in markers
 
 
+def test_find_repository_root_stops_at_temp_boundary(tmp_path: Path):
+    (tmp_path / "pyproject.toml").write_text('[project]\nname="outer"')
+    temp_child = tmp_path / ".tmp" / "pytest-case"
+    temp_child.mkdir(parents=True)
+
+    root = find_repository_root(temp_child)
+
+    assert root == temp_child.resolve()
+
+
 def test_root_markers_listed(tmp_path: Path):
     (tmp_path / "README.md").write_text("# readme")
     (tmp_path / "pyproject.toml").write_text('[project]\nname="a"')

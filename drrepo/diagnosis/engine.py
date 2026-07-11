@@ -1,14 +1,11 @@
 from typing import Any, Dict, List
 
-
-def _first_seen_dedup(items: List[str]) -> List[str]:
-    seen = set()
-    out = []
-    for i in items:
-        if i not in seen:
-            seen.add(i)
-            out.append(i)
-    return out
+from drrepo.assessment import (
+    build_evidence_confidence,
+    cap_score_for_hard_flags,
+    derive_hard_flags,
+    first_seen_dedup,
+)
 
 
 def _label_for_score(score: float | int | None) -> str:
@@ -25,6 +22,15 @@ def _label_for_score(score: float | int | None) -> str:
     return "needs_major_improvement"
 
 
+def _first_error(errors: Any) -> str | None:
+    if not isinstance(errors, list):
+        return None
+    for error in errors:
+        if isinstance(error, str) and error.strip():
+            return error.strip()
+    return None
+
+
 def build_diagnosis(audit: Dict[str, Any]) -> Dict[str, Any]:
     if not isinstance(audit, dict):
         audit = {}
@@ -35,10 +41,8 @@ def build_diagnosis(audit: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(scoring, dict):
         score = scoring.get("overall_score") if scoring.get("overall_score") is not None else scoring.get("overall")
 
-    label = _label_for_score(score)
-
-    hard_flags: List[str] = []
     limitations: List[str] = []
+    analyzer_entries: List[Dict[str, Any]] = []
 
     # Helper to inspect analyzer entries
     def _inspect_entries(section_name: str):
@@ -51,14 +55,18 @@ def build_diagnosis(audit: Dict[str, Any]) -> Dict[str, Any]:
             tool = entry.get("tool") or entry.get("name") or ""
             status = entry.get("status")
             findings = entry.get("findings") or []
+            errors = entry.get("errors") or []
+            summary = entry.get("summary") or {}
 
-            # Analyzer errors present
-            if status in ("failed_to_run", "partial"):
-                hard_flags.append("ANALYZER_ERRORS_PRESENT")
+            analyzer_entries.append(entry)
 
             # Missing optional evidence
             if status == "not_available":
                 limitations.append("Some optional analysis tools were not available.")
+            if status == "skipped_by_config" and isinstance(summary, dict):
+                reason = summary.get("reason")
+                if isinstance(reason, str) and reason:
+                    limitations.append(reason)
 
             # Coverage specific
             if tool == "coverage" and status in ("not_available", "not_applicable"):
@@ -67,37 +75,37 @@ def build_diagnosis(audit: Dict[str, Any]) -> Dict[str, Any]:
             # Pytest not applicable
             if tool == "pytest" and status == "not_applicable":
                 limitations.append("Test evidence was unavailable.")
-
-            # Findings-based flags
-            if isinstance(findings, list) and findings:
-                # README findings
-                if tool == "readme":
-                    hard_flags.append("README_INCOMPLETE")
-                # structure findings
-                if tool == "structure":
-                    hard_flags.append("STRUCTURE_INCOMPLETE")
-                # bandit security
-                if tool == "bandit":
-                    for f in findings:
-                        sev = f.get("severity")
-                        if sev in ("medium", "high", "critical"):
-                            hard_flags.append("SECURITY_FINDINGS_PRESENT")
-                            break
-                # pytest findings
-                if tool == "pytest":
-                    for f in findings:
-                        code = f.get("code")
-                        if code in ("PYTEST-FAILED", "PYTEST-ERROR"):
-                            hard_flags.append("TESTS_FAILING")
-                            break
+            if tool == "pytest" and status == "not_available":
+                limitations.append("Pytest was not available in this environment.")
+            if tool == "pytest" and status == "failed_to_run":
+                reason = _first_error(errors)
+                if reason:
+                    limitations.append(reason)
+                else:
+                    limitations.append("Pytest could not run in this environment.")
+            if tool == "pytest" and isinstance(entry.get("summary"), dict):
+                outcome = entry["summary"].get("outcome")
+                if outcome == "failed_tests":
+                    limitations.append("Tests ran but failed.")
+                elif outcome == "collection_error":
+                    limitations.append("Tests could not run because pytest collection failed.")
+                elif outcome == "env_error":
+                    limitations.append("Tests could not run because of an import or environment issue.")
+                elif outcome == "timeout":
+                    limitations.append("Pytest timed out before completing.")
+                elif outcome == "pytest_unavailable":
+                    limitations.append("Pytest was not available in this environment.")
 
     # Inspect all analyzer sections
     for sec in ("static_analysis", "test_analysis", "repository_analysis"):
         _inspect_entries(sec)
 
     # Deduplicate preserving first seen order
-    hard_flags = _first_seen_dedup(hard_flags)
-    limitations = _first_seen_dedup(limitations)
+    hard_flags = derive_hard_flags(analyzer_entries)
+    limitations = first_seen_dedup(limitations)
+    evidence_confidence = build_evidence_confidence(analyzer_entries)
+    calibrated_score = cap_score_for_hard_flags(score, hard_flags)
+    label = _label_for_score(calibrated_score)
 
     # Build summary text
     summaries = {
@@ -107,13 +115,17 @@ def build_diagnosis(audit: Dict[str, Any]) -> Dict[str, Any]:
         "needs_major_improvement": "Repository has major readiness issues that should be fixed first.",
     }
     summary = summaries.get(label, "Repository status uncertain.")
+    if evidence_confidence and evidence_confidence.get("label") != "full":
+        summary = f"{summary} {evidence_confidence.get('summary')}"
     if hard_flags:
         summary = summary + " Hard flags: " + ", ".join(hard_flags) + "."
 
     diagnosis = {
-        "repository_health": {"label": label, "score": score, "summary": summary},
+        "repository_health": {"label": label, "score": calibrated_score, "summary": summary},
         "hard_flags": hard_flags,
         "limitations": limitations,
     }
+    if evidence_confidence:
+        diagnosis["evidence_confidence"] = evidence_confidence
 
     return diagnosis

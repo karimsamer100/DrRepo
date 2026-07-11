@@ -62,7 +62,7 @@ def audit(
                 # Ensure cleanup happens in finally
                 raise typer.BadParameter(str(exc)) from exc
 
-            audit_result = build_audit(repo_path)
+            audit_result = build_audit(repo_path, execute_tests=False)
             # annotate source for URL audits
             audit_result["source"] = {"type": "github_url", "value": path}
         else:

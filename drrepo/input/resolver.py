@@ -7,6 +7,9 @@ from __future__ import annotations
 from pathlib import Path
 
 
+ROOT_SEARCH_BOUNDARIES = {".tmp", "tmp", ".pytest_cache", "__pycache__"}
+
+
 def resolve_local_path(path: str | Path) -> Path:
     """Resolve a user-supplied path to an absolute local directory Path.
 
@@ -47,8 +50,13 @@ def find_repository_root(path: str | Path) -> Path:
         "README.rst",
     ]
 
-    current: Path = p
-    for candidate in [current] + list(current.parents):
+    candidates = [p]
+    for parent in p.parents:
+        candidates.append(parent)
+        if parent.name in ROOT_SEARCH_BOUNDARIES:
+            break
+
+    for candidate in candidates:
         try:
             entries = {child.name for child in candidate.iterdir()}
         except Exception:

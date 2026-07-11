@@ -18,7 +18,32 @@ def test_basic_report_sections_present():
     assert "## Metadata Summary" in md
     assert "## Analyzer Summary" in md
     assert "## Findings" in md
+    assert "## Evidence Limitations / Unavailable Tools" in md
     assert "## Errors" in md
+
+
+def test_markdown_report_prefers_source_for_github_audits():
+    audit = {
+        "path": "C:/temp/drrepo-123/repo",
+        "source": {"type": "github_url", "value": "https://github.com/owner/repo"},
+        "diagnosis": {
+            "evidence_confidence": {
+                "label": "partial",
+                "summary": "Partial evidence: 3 of 5 optional tools were available.",
+            }
+        },
+    }
+    md = render_markdown_report(audit)
+    assert "https://github.com/owner/repo" in md
+    assert "C:/temp/drrepo-123/repo" not in md
+    assert "Evidence confidence: partial; Partial evidence: 3 of 5 optional tools were available." in md
+
+
+def test_markdown_report_uses_path_for_local_audits():
+    audit = {"path": "C:/projects/local-repo", "status": "ok"}
+    md = render_markdown_report(audit)
+    assert "- **Path**: C:/projects/local-repo" in md
+    assert "- **Source**:" not in md
 
 
 def test_scoring_values_rendered():
@@ -72,9 +97,38 @@ def test_findings_rendered():
 
 
 def test_errors_rendered():
-    audit = {"static_analysis": [{"tool": "ruff", "errors": ["No module named ruff"]}]}
+    audit = {"static_analysis": [{"tool": "ruff", "status": "failed_to_run", "errors": ["ruff crashed"]}]}
     md = render_markdown_report(audit)
-    assert "No module named ruff" in md
+    assert "ruff crashed" in md
+
+
+def test_not_available_tools_render_as_limitations_not_errors():
+    audit = {
+        "static_analysis": [
+            {"tool": "ruff", "status": "not_available", "errors": ["No module named ruff"]},
+            {"tool": "bandit", "status": "not_available", "errors": ["No module named bandit"]},
+            {"tool": "radon", "status": "not_available", "errors": ["No module named radon"]},
+        ],
+        "test_analysis": [
+            {"tool": "coverage", "status": "not_available", "errors": ["No module named coverage"]},
+            {
+                "tool": "pytest",
+                "status": "skipped_by_config",
+                "summary": {"reason": "Skipped for remote GitHub audit safety."},
+            },
+        ],
+    }
+    md = render_markdown_report(audit)
+    assert "ruff: tool unavailable in this environment." in md
+    assert "bandit: tool unavailable in this environment." in md
+    assert "radon: tool unavailable in this environment." in md
+    assert "coverage: tool unavailable in this environment." in md
+    assert "pytest: Skipped for remote GitHub audit safety." in md
+    assert "No module named ruff" not in md
+    assert "No module named bandit" not in md
+    assert "No module named radon" not in md
+    assert "No module named coverage" not in md
+    assert "No analyzer errors reported." in md
 
 
 def test_missing_keys_do_not_crash():

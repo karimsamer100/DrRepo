@@ -18,6 +18,7 @@ def test_terminal_summary_contains_basic_fields():
     assert "Overall score: 90" in out
     assert "Diagnosis: healthy" in out
     assert "Suggestions: 2" in out
+    assert "ruff: tool unavailable in this environment." in out
     assert "1. [unknown] One — Do one" in out
 
 
@@ -60,3 +61,46 @@ def test_terminal_summary_analyzer_statuses_render():
     assert "static_analysis" in out
     assert "ruff=not_available" in out
     assert "bandit=completed" in out
+
+
+def test_terminal_summary_prefers_source_for_github_audits():
+    audit = {
+        "path": "C:/temp/drrepo-123/repo",
+        "source": {"type": "github_url", "value": "https://github.com/owner/repo"},
+        "diagnosis": {
+            "evidence_confidence": {
+                "label": "partial",
+                "summary": "Partial evidence: 3 of 5 optional tools were available.",
+            }
+        },
+    }
+    out = render_terminal_summary(audit)
+    assert "Source: https://github.com/owner/repo" in out
+    assert "Path: C:/temp/drrepo-123/repo" not in out
+    assert "Evidence confidence: Partial evidence: 3 of 5 optional tools were available." in out
+
+
+def test_terminal_summary_lists_unavailable_and_skipped_tools_as_limitations():
+    audit = {
+        "static_analysis": [
+            {"tool": "ruff", "status": "not_available", "errors": ["No module named ruff"]},
+            {"tool": "bandit", "status": "not_available", "errors": ["No module named bandit"]},
+            {"tool": "radon", "status": "not_available", "errors": ["No module named radon"]},
+        ],
+        "test_analysis": [
+            {"tool": "coverage", "status": "not_available", "errors": ["No module named coverage"]},
+            {
+                "tool": "pytest",
+                "status": "skipped_by_config",
+                "summary": {"reason": "Skipped for remote GitHub audit safety."},
+            },
+        ],
+    }
+    out = render_terminal_summary(audit)
+    assert "Evidence limitations / unavailable tools:" in out
+    assert "ruff: tool unavailable in this environment." in out
+    assert "bandit: tool unavailable in this environment." in out
+    assert "radon: tool unavailable in this environment." in out
+    assert "coverage: tool unavailable in this environment." in out
+    assert "pytest: Skipped for remote GitHub audit safety." in out
+    assert "No module named ruff" not in out

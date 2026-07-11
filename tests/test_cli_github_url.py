@@ -56,7 +56,8 @@ def test_url_audit_calls_clone_and_build(monkeypatch, tmp_path):
         repo.mkdir()
         return repo
 
-    def fake_build(path):
+    def fake_build(path, **kwargs):
+        called["execute_tests"] = kwargs.get("execute_tests")
         called['build'] = str(path)
         out = dict(MINIMAL_AUDIT)
         out['path'] = str(path)
@@ -72,6 +73,7 @@ def test_url_audit_calls_clone_and_build(monkeypatch, tmp_path):
     data = json.loads(result.output)
     assert data['status'] == 'ok'
     assert called.get('clone') == url
+    assert called.get("execute_tests") is False
     assert 'source' in data and data['source']['type'] == 'github_url'
 
 
@@ -82,7 +84,7 @@ def test_url_audit_cleanup_on_success(monkeypatch, tmp_path):
     monkeypatch.setattr('drrepo.cli.create_temp_workspace', lambda: tmp_path / 'ws')
     monkeypatch.setattr('drrepo.cli.clone_public_github_repo', lambda u, ws: tmp_path / 'ws' / 'repo')
 
-    def fake_build(path):
+    def fake_build(path, **kwargs):
         return dict(MINIMAL_AUDIT, path=str(path))
 
     monkeypatch.setattr('drrepo.cli.build_audit', fake_build)
@@ -142,7 +144,7 @@ def test_url_supports_summary_format(monkeypatch, tmp_path):
     url = 'https://github.com/Owner/Repo'
     monkeypatch.setattr('drrepo.cli.create_temp_workspace', lambda: tmp_path / 'ws')
     monkeypatch.setattr('drrepo.cli.clone_public_github_repo', lambda u, ws: tmp_path / 'ws' / 'repo')
-    monkeypatch.setattr('drrepo.cli.build_audit', lambda p: dict(MINIMAL_AUDIT, path=str(p)))
+    monkeypatch.setattr('drrepo.cli.build_audit', lambda p, **kwargs: dict(MINIMAL_AUDIT, path=str(p)))
     monkeypatch.setattr('drrepo.cli.cleanup_workspace', lambda p: None)
 
     result = runner.invoke(app, ['audit', url, '--format', 'summary'])
@@ -154,7 +156,7 @@ def test_url_supports_output_file(monkeypatch, tmp_path):
     url = 'https://github.com/Owner/Repo'
     monkeypatch.setattr('drrepo.cli.create_temp_workspace', lambda: tmp_path / 'ws')
     monkeypatch.setattr('drrepo.cli.clone_public_github_repo', lambda u, ws: tmp_path / 'ws' / 'repo')
-    monkeypatch.setattr('drrepo.cli.build_audit', lambda p: dict(MINIMAL_AUDIT, path=str(p)))
+    monkeypatch.setattr('drrepo.cli.build_audit', lambda p, **kwargs: dict(MINIMAL_AUDIT, path=str(p)))
     monkeypatch.setattr('drrepo.cli.cleanup_workspace', lambda p: None)
 
     out_file = tmp_path / 'audit.json'

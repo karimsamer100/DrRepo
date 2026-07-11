@@ -6,7 +6,7 @@ interface StatusBadgeProps {
 }
 
 export function StatusBadge({ label, score }: StatusBadgeProps) {
-  const text = label || labelForScore(score)
+  const text = (label || labelForScore(score)).replace(/_/g, ' ')
   const colorClass = scoreColor(score)
 
   let border = 'border-border bg-surface-2 text-muted'

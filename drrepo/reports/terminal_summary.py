@@ -5,6 +5,18 @@ def _safe_get(d: Dict[str, Any], key: str, default: Any = None) -> Any:
     return d.get(key, default) if isinstance(d, dict) else default
 
 
+def _limitation_reason(entry: Dict[str, Any]) -> str | None:
+    tool = entry.get("tool") or entry.get("name") or "unknown"
+    status = entry.get("status")
+    summary = entry.get("summary") if isinstance(entry.get("summary"), dict) else {}
+    if status == "skipped_by_config":
+        reason = summary.get("reason") or "Skipped by configuration."
+        return f"{tool}: {reason}"
+    if status == "not_available":
+        return f"{tool}: tool unavailable in this environment."
+    return None
+
+
 def render_terminal_summary(audit: Dict[str, Any]) -> str:
     if not isinstance(audit, dict):
         audit = {}
@@ -12,6 +24,8 @@ def render_terminal_summary(audit: Dict[str, Any]) -> str:
     lines: List[str] = []
     lines.append("# DrRepo Audit Summary")
     path = _safe_get(audit, "path", "unknown")
+    source = _safe_get(audit, "source", {}) or {}
+    source_value = _safe_get(source, "value")
     scoring = _safe_get(audit, "scoring", {}) or {}
     overall = _safe_get(scoring, "overall_score", _safe_get(scoring, "overall", "unknown"))
 
@@ -20,7 +34,10 @@ def render_terminal_summary(audit: Dict[str, Any]) -> str:
     label = _safe_get(repo_health, "label", "unknown")
     summary = _safe_get(repo_health, "summary", "unknown")
 
-    lines.append(f"Path: {path}")
+    if source_value:
+        lines.append(f"Source: {source_value}")
+    else:
+        lines.append(f"Path: {path}")
     lines.append(f"Overall score: {overall}")
     # Repository & portfolio scores
     repo_health_score = _safe_get(scoring, "repository_health_score")
@@ -35,11 +52,33 @@ def render_terminal_summary(audit: Dict[str, Any]) -> str:
 
     hard_flags = _safe_get(diagnosis, "hard_flags", []) or []
     limitations = _safe_get(diagnosis, "limitations", []) or []
+    evidence_confidence = _safe_get(diagnosis, "evidence_confidence", {}) or {}
     lines.append("Hard flags:")
     lines.append(", ".join(hard_flags) if hard_flags else "None")
     lines.append("")
     lines.append("Limitations:")
     lines.append(", ".join(limitations) if limitations else "None")
+    if evidence_confidence:
+        lines.append("")
+        lines.append(
+            "Evidence confidence: "
+            + str(_safe_get(evidence_confidence, "summary", _safe_get(evidence_confidence, "label", "unknown")))
+        )
+    lines.append("")
+
+    evidence_limitations: List[str] = []
+    for sec in ("static_analysis", "test_analysis", "repository_analysis"):
+        entries = _safe_get(audit, sec, []) or []
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            reason = _limitation_reason(entry)
+            if reason:
+                evidence_limitations.append(reason)
+    lines.append("Evidence limitations / unavailable tools:")
+    lines.append(", ".join(evidence_limitations) if evidence_limitations else "None")
     lines.append("")
 
     # Suggestions: top 3 actions

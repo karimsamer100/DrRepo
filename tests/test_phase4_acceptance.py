@@ -34,6 +34,10 @@ def test_build_audit_on_sample_good_repo():
 
     assert "repository_health" in audit.get("diagnosis", {})
     assert isinstance(audit.get("remediation_suggestions", []), list)
+    assert audit["diagnosis"]["hard_flags"] == []
+    assert audit["diagnosis"]["repository_health"]["label"] == "healthy"
+    assert audit["diagnosis"]["evidence_confidence"]["label"] == "limited"
+    assert audit["scoring"]["overall_score"] == audit["diagnosis"]["repository_health"]["score"]
 
 
 def test_build_audit_on_sample_bad_repo():
@@ -42,6 +46,9 @@ def test_build_audit_on_sample_bad_repo():
     assert audit.get("status") == "ok"
     assert isinstance(audit.get("remediation_suggestions", []), list)
     assert "diagnosis" in audit
+    assert audit["diagnosis"]["repository_health"]["label"] == "needs_attention"
+    assert audit["scoring"]["categories"]["testing"] < 100
+    assert audit["scoring"]["portfolio_readiness_score"] < 100
 
     # at least one evidence finding section or remediation suggestion exists
     findings_present = False
@@ -59,7 +66,7 @@ def test_build_audit_on_sample_bad_repo():
 
 def test_build_audit_on_self_repo():
     p = Path(".")
-    audit = build_audit(p)
+    audit = build_audit(p, execute_tests=False)
     assert audit.get("status") == "ok"
     metadata = audit.get("metadata", {})
     # metadata should report some python files

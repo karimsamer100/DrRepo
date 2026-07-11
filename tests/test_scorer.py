@@ -1,11 +1,16 @@
 import json
 
-from drrepo.scoring.scorer import severity_penalty, score_tool_results, score_audit_sections
+from drrepo.scoring.scorer import (
+    cap_score_for_hard_flags,
+    severity_penalty,
+    score_tool_results,
+    score_audit_sections,
+)
 from drrepo.analyzers.models import ToolResult, ToolFinding
 
 
-def make_result(tool: str, status: str = "completed", findings=None):
-    return ToolResult(tool=tool, status=status, findings=(findings or []))
+def make_result(tool: str, status: str = "completed", findings=None, summary=None):
+    return ToolResult(tool=tool, status=status, findings=(findings or []), summary=(summary or {}))
 
 
 def test_severity_penalty():
@@ -65,5 +70,83 @@ def test_score_audit_sections():
     s_test = 90  # failed_to_run -> -10
     s_repo = 85  # high -> -15
     expected_overall = int(round((s_static + s_test + s_repo) / 3.0))
-    assert out["overall_score"] == expected_overall
+    assert out["overall_score"] == 79
     assert set(out["sections"].keys()) == {"static_analysis", "test_analysis", "repository_analysis"}
+    assert expected_overall > out["overall_score"]
+
+
+def test_cap_score_for_hard_flags_uses_stricter_caps():
+    assert cap_score_for_hard_flags(96, ["README_INCOMPLETE"]) == 84
+    assert cap_score_for_hard_flags(96, ["ANALYZER_ERRORS_PRESENT"]) == 79
+    assert cap_score_for_hard_flags(96, ["TESTS_FAILING"]) == 79
+    assert cap_score_for_hard_flags(96, ["README_INCOMPLETE", "TESTS_FAILING"]) == 79
+
+
+def test_score_audit_sections_caps_high_scores_when_tests_fail():
+    static = [make_result("ruff", "completed")]
+    test = [
+        make_result(
+            "pytest",
+            "completed",
+            findings=[ToolFinding(tool="pytest", message="1 test failed", severity="high", code="PYTEST-FAILED")],
+        )
+    ]
+    repo = [make_result("readme", "completed")]
+
+    out = score_audit_sections(static, test, repo)
+
+    assert out["sections"]["test_analysis"]["score"] == 85
+    assert out["overall_score"] == 79
+    assert out["repository_health_score"] == 79
+    assert out["portfolio_readiness_score"] == 79
+
+
+def test_readme_structure_flags_do_not_cap_repository_health_score():
+    static = [make_result("ruff", "completed")]
+    test = [make_result("pytest", "completed")]
+    repo = [
+        make_result("readme", "completed", findings=[ToolFinding(tool="readme", message="missing usage", severity="low", code="README-MISSING-USAGE")]),
+        make_result("structure", "completed", findings=[ToolFinding(tool="structure", message="missing docs", severity="low", code="STRUCTURE-MISSING-DOCS")]),
+    ]
+
+    out = score_audit_sections(static, test, repo)
+
+    assert out["repository_health_score"] > 84
+    assert out["portfolio_readiness_score"] == 84
+
+
+def test_no_tests_do_not_score_as_perfect_testing():
+    static = [make_result("ruff", "completed")]
+    test = [
+        make_result("pytest", "not_applicable", summary={"outcome": "no_tests"}),
+        make_result("coverage", "not_available"),
+    ]
+    repo = [make_result("readme", "completed")]
+
+    out = score_audit_sections(static, test, repo)
+
+    assert out["categories"]["testing"] == 70
+    assert out["portfolio_readiness_score"] < 100
+
+
+def test_passed_tests_can_score_testing_as_perfect():
+    out = score_audit_sections(
+        [make_result("ruff", "completed")],
+        [make_result("pytest", "completed", summary={"outcome": "passed"}), make_result("coverage", "completed")],
+        [make_result("readme", "completed")],
+    )
+
+    assert out["categories"]["testing"] == 100
+
+
+def test_remote_skipped_tests_do_not_score_as_passed():
+    out = score_audit_sections(
+        [make_result("ruff", "completed")],
+        [
+            make_result("pytest", "skipped_by_config", summary={"outcome": "skipped_for_remote_safety"}),
+            make_result("coverage", "skipped_by_config", summary={"outcome": "skipped_for_remote_safety"}),
+        ],
+        [make_result("readme", "completed")],
+    )
+
+    assert out["categories"]["testing"] == 70

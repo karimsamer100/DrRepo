@@ -4,7 +4,12 @@ interface ScoreCardProps {
   title: string
   score?: number | null
   subtitle?: string
+  label?: string
   size?: 'default' | 'hero'
+}
+
+function displayLabel(label: string | undefined, score: number | null | undefined): string {
+  return (label || labelForScore(score)).replace(/_/g, ' ')
 }
 
 function CornerTick({ className }: { className?: string }) {
@@ -23,9 +28,10 @@ function CornerTick({ className }: { className?: string }) {
   )
 }
 
-export function ScoreCard({ title, score, subtitle, size = 'default' }: ScoreCardProps) {
+export function ScoreCard({ title, score, subtitle, label, size = 'default' }: ScoreCardProps) {
   if (size === 'hero') {
     const display = score === null || score === undefined ? '—' : `${Math.round(score)}`
+    const verdict = displayLabel(label, score)
     return (
       <div className="surface-raised rounded-xl p-6 relative overflow-hidden">
         <CornerTick className="absolute top-4 left-4 text-brand/25" />
@@ -40,7 +46,7 @@ export function ScoreCard({ title, score, subtitle, size = 'default' }: ScoreCar
             <span
               className={`text-sm font-semibold px-2 py-0.5 rounded border ${scoreBgColor(score)} ${scoreColor(score)}`}
             >
-              {labelForScore(score)}
+              {verdict}
             </span>
           </div>
           {subtitle && (
