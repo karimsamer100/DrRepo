@@ -47,6 +47,10 @@ def _limitation_reason(entry: Dict[str, Any]) -> str | None:
         errors = entry.get("errors") or []
         reason = str(errors[0]).strip() if isinstance(errors, list) and errors else "Analyzer failed to run."
         return f"{tool}: analyzer failed to run ({reason})"
+    if status == "partial":
+        errors = entry.get("errors") or []
+        reason = str(errors[0]).strip() if isinstance(errors, list) and errors else "Analyzer produced partial evidence."
+        return f"{tool}: partial evidence ({reason})"
     return None
 
 
@@ -80,6 +84,95 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
 
     # Title
     lines.append("# DrRepo Audit Report")
+
+    executive = _safe_get(audit, "executive_report", {}) or {}
+    understanding = _safe_get(audit, "project_understanding", {}) or {}
+    identity = _safe_get(understanding, "project_identity", {}) or {}
+    runnability = _safe_get(understanding, "runnability", {}) or {}
+    entry_points = _safe_get(understanding, "entry_points", []) or []
+    recs_v2 = _safe_get(audit, "recommendations_v2", []) or []
+
+    if executive:
+        lines.append("")
+        lines.append("## Executive Summary")
+        headline = _safe_get(executive, "headline")
+        summary = _safe_get(executive, "one_sentence_summary")
+        description = _safe_get(executive, "project_description")
+        if headline:
+            lines.append(f"**{headline}**")
+        if summary:
+            lines.append("")
+            lines.append(str(summary))
+        if description:
+            lines.append("")
+            lines.append(str(description))
+        biggest_gap = _safe_get(executive, "biggest_gap")
+        next_step = _safe_get(executive, "next_best_step")
+        if biggest_gap:
+            lines.append(f"- **Biggest gap**: {biggest_gap}")
+        if next_step:
+            lines.append(f"- **Next best step**: {next_step}")
+
+    if identity:
+        lines.append("")
+        lines.append("## Project Identity")
+        lines.append(f"- **Type**: {_safe_get(identity, 'project_type', 'unknown')}")
+        lines.append(f"- **Primary language**: {_safe_get(identity, 'primary_language', 'unknown')}")
+        frameworks = _safe_get(identity, "frameworks", []) or []
+        interfaces = _safe_get(identity, "interfaces", []) or []
+        secondary = _safe_get(identity, "secondary_project_types", []) or []
+        lines.append(f"- **Frameworks**: {', '.join(frameworks) if frameworks else 'None detected'}")
+        lines.append(f"- **Interfaces**: {', '.join(interfaces) if interfaces else 'None detected'}")
+        lines.append(f"- **Secondary types**: {', '.join(secondary) if secondary else 'None'}")
+        lines.append(f"- **Package layout**: {_safe_get(identity, 'package_layout', 'unknown')}")
+        lines.append(f"- **Confidence**: {_safe_get(identity, 'confidence', 'unknown')}")
+
+    if runnability:
+        lines.append("")
+        lines.append("## How to Run / Runnability")
+        lines.append(f"- **Status**: {_safe_get(runnability, 'status', 'unknown')}")
+        lines.append(f"- **Confidence**: {_safe_get(runnability, 'confidence', 'unknown')}")
+        for label, key in (
+            ("Install commands", "install_commands"),
+            ("Run commands", "run_commands"),
+            ("Test commands", "test_commands"),
+            ("Build commands", "build_commands"),
+        ):
+            commands = _safe_get(runnability, key, []) or []
+            lines.append(f"- **{label}**: {', '.join(commands) if commands else 'None inferred'}")
+        missing = _safe_get(runnability, "missing_requirements", []) or []
+        if missing:
+            lines.append(f"- **Missing requirements**: {', '.join(missing)}")
+        if isinstance(entry_points, list) and entry_points:
+            lines.append("")
+            lines.append("### Likely entry points")
+            for entry in entry_points[:8]:
+                if not isinstance(entry, dict):
+                    continue
+                detail = entry.get("command") or entry.get("symbol") or ""
+                suffix = f" `{detail}`" if detail else ""
+                lines.append(f"- **{entry.get('kind', 'entry')}**: {entry.get('path', 'unknown')}{suffix}")
+
+    if isinstance(recs_v2, list) and recs_v2:
+        lines.append("")
+        lines.append("## Top Actions")
+        for rec in recs_v2[:5]:
+            if not isinstance(rec, dict):
+                continue
+            lines.append(f"### {rec.get('priority', '-')}. {rec.get('title', 'Recommendation')}")
+            lines.append(f"- **Type**: {rec.get('recommendation_type', 'unknown')}")
+            lines.append(f"- **Impact / effort**: {rec.get('impact', 'unknown')} / {rec.get('effort', 'unknown')}")
+            why = rec.get("why_it_matters")
+            if why:
+                lines.append(f"- **Why it matters**: {why}")
+            steps = rec.get("recommended_steps") or []
+            if isinstance(steps, list) and steps:
+                lines.append("- **Steps**:")
+                for step in steps[:4]:
+                    lines.append(f"  - {step}")
+            success = rec.get("success_check")
+            if success:
+                lines.append(f"- **Success check**: {success}")
 
     # Repository
     lines.append("## Repository")

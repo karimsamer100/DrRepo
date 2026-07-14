@@ -1,8 +1,9 @@
-import type { AdvisorAction, AdvisorReport } from '../types/api'
+import type { AdvisorAction, AdvisorReport, StructuredRecommendation } from '../types/api'
 
 interface AdvisorPanelProps {
   advisor: AdvisorReport | null
   profileId: string
+  recommendations?: StructuredRecommendation[]
 }
 
 function normalizeTitle(title: string): string {
@@ -96,7 +97,83 @@ function ActionBody({ group }: { group: ActionGroup }) {
   )
 }
 
-export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
+function StructuredRecommendationCard({ rec }: { rec: StructuredRecommendation }) {
+  return (
+    <li className="rounded-2xl border border-border bg-base p-4">
+      <div className="flex items-start gap-3">
+        <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-brand/30 bg-brand/10 font-mono text-xs text-brand">
+          {rec.priority || '-'}
+        </span>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="font-semibold text-primary">{rec.title}</div>
+            <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] text-faint">
+              {rec.recommendation_type?.replace(/_/g, ' ') || 'recommendation'}
+            </span>
+          </div>
+          {rec.why_it_matters && <p className="mt-2 text-sm leading-6 text-muted">{rec.why_it_matters}</p>}
+          {rec.recommended_steps && rec.recommended_steps.length > 0 && (
+            <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs leading-5 text-muted">
+              {rec.recommended_steps.slice(0, 4).map((step) => (
+                <li key={step}>{step}</li>
+              ))}
+            </ol>
+          )}
+          {rec.success_check && (
+            <div className="mt-3 rounded-lg border border-border bg-surface p-2 text-xs leading-5 text-muted">
+              Success check: {rec.success_check}
+            </div>
+          )}
+        </div>
+      </div>
+    </li>
+  )
+}
+
+export function AdvisorPanel({ advisor, profileId, recommendations = [] }: AdvisorPanelProps) {
+  if (recommendations.length > 0) {
+    const repositoryFixes = recommendations.filter((rec) => rec.recommendation_type !== 'audit_environment')
+    const auditEnvironment = recommendations.filter((rec) => rec.recommendation_type === 'audit_environment')
+    return (
+      <section className="rounded-2xl border border-border bg-surface p-4">
+        <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-faint">
+              Recommended actions
+            </h3>
+            <p className="mt-1 text-xs text-muted">Structured, deterministic plan for {profileId.replace(/_/g, ' ')}</p>
+          </div>
+          <span className="self-start rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-[10px] font-medium text-brand sm:self-auto">
+            Intelligence v1
+          </span>
+        </div>
+        {repositoryFixes.length > 0 ? (
+          <ol className="space-y-3">
+            {repositoryFixes.slice(0, 5).map((rec) => (
+              <StructuredRecommendationCard key={rec.id || rec.title} rec={rec} />
+            ))}
+          </ol>
+        ) : (
+          <div className="rounded-xl border border-health/25 bg-health/5 p-3 text-sm text-muted">
+            No repository-fix recommendations were generated from observed evidence.
+          </div>
+        )}
+        {auditEnvironment.length > 0 && (
+          <details className="mt-4 border-t border-border pt-3">
+            <summary className="inline-flex min-h-8 cursor-pointer items-center text-xs text-muted transition-colors hover:text-primary">
+              Audit-environment improvements
+            </summary>
+            <ol className="mt-2 space-y-2">
+              {auditEnvironment.slice(0, 4).map((rec) => (
+                <StructuredRecommendationCard key={rec.id || rec.title} rec={rec} />
+              ))}
+            </ol>
+          </details>
+        )}
+      </section>
+    )
+  }
+
   if (!advisor) return null
 
   const response = advisor.advisor_response

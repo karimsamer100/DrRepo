@@ -72,6 +72,8 @@ export interface EvidenceConfidence {
   available_optional_tools?: string[]
   missing_optional_tools?: string[]
   skipped_optional_tools?: string[]
+  failed_optional_tools?: string[]
+  incomplete_optional_tools?: string[]
 }
 
 export interface Diagnosis {
@@ -87,6 +89,96 @@ export interface RemediationSuggestion {
   tool?: string
   title?: string
   action?: string
+}
+
+export interface EvidenceItem {
+  path: string
+  reason: string
+  detail?: string | null
+}
+
+export interface ProjectIdentity {
+  primary_language?: string
+  project_type?: string
+  secondary_project_types?: string[]
+  frameworks?: string[]
+  interfaces?: string[]
+  package_layout?: string
+  confidence?: string
+  evidence?: EvidenceItem[]
+}
+
+export interface ProjectEntryPoint {
+  kind?: string
+  path?: string
+  symbol?: string | null
+  command?: string | null
+  confidence?: string
+  evidence?: EvidenceItem[]
+}
+
+export interface ProjectRunnability {
+  install_commands?: string[]
+  run_commands?: string[]
+  test_commands?: string[]
+  build_commands?: string[]
+  status?: string
+  confidence?: string
+  missing_requirements?: string[]
+  evidence?: EvidenceItem[]
+}
+
+export interface ArchitectureSummary {
+  backend_present?: boolean
+  frontend_present?: boolean
+  cli_present?: boolean
+  api_present?: boolean
+  ml_present?: boolean
+  notebooks_present?: boolean
+  database_signals?: string[]
+  container_signals?: string[]
+  ci_signals?: string[]
+  important_directories?: string[]
+}
+
+export interface ProjectUnderstanding {
+  project_identity?: ProjectIdentity
+  entry_points?: ProjectEntryPoint[]
+  runnability?: ProjectRunnability
+  architecture_summary?: ArchitectureSummary
+}
+
+export interface ExecutiveReport {
+  headline?: string
+  one_sentence_summary?: string
+  project_description?: string
+  verdict?: string
+  observed_score?: number | null
+  evidence_confidence?: string
+  strongest_signals?: string[]
+  primary_risks?: string[]
+  biggest_gap?: string
+  next_best_step?: string
+  evidence_gaps?: string[]
+  user_profile_context?: string
+}
+
+export interface StructuredRecommendation {
+  id?: string
+  title?: string
+  category?: string
+  priority?: number
+  severity?: string
+  confidence?: string
+  impact?: string
+  effort?: string
+  recommendation_type?: 'repository_fix' | 'audit_environment' | 'verification_step' | string
+  why_it_matters?: string
+  evidence?: string[]
+  related_findings?: string[]
+  recommended_steps?: string[]
+  optional_example?: string | null
+  success_check?: string
 }
 
 export interface AuditMetadata {
@@ -130,6 +222,9 @@ export interface Audit {
   scoring?: AuditScoring
   diagnosis?: Diagnosis
   remediation_suggestions?: RemediationSuggestion[]
+  recommendations_v2?: StructuredRecommendation[]
+  project_understanding?: ProjectUnderstanding
+  executive_report?: ExecutiveReport
   remediation_summary?: {
     total?: number
     by_severity?: Record<string, number>

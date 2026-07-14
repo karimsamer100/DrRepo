@@ -26,7 +26,9 @@ def test_get_profile_rejects_unknown_profile_ids():
 
 def test_list_profiles_returns_all_supported_profiles():
     profiles = list_profiles()
-    assert len(profiles) == 4
+    assert len(profiles) == len(get_supported_profile_ids())
+    ids = {profile["profile_id"] for profile in profiles}
+    assert {"student_portfolio", "production_api", "ai_ml_project"}.issubset(ids)
 
 
 def test_each_profile_has_primary_user_goal():

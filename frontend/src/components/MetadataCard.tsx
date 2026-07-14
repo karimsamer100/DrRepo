@@ -1,4 +1,4 @@
-import type { AuditMetadata } from '../types/api'
+import type { AuditMetadata, ProjectUnderstanding } from '../types/api'
 
 interface MetadataCardProps {
   metadata?: AuditMetadata
@@ -8,6 +8,7 @@ interface MetadataCardProps {
     lock_file_exists?: boolean
     likely_install_command?: string | null
   }
+  projectUnderstanding?: ProjectUnderstanding
 }
 
 function PresenceChip({ label, present }: { label: string; present?: boolean }) {
@@ -25,8 +26,27 @@ function PresenceChip({ label, present }: { label: string; present?: boolean }) 
   )
 }
 
-export function MetadataCard({ metadata, dependencyEnvironment }: MetadataCardProps) {
+function CommandList({ title, commands }: { title: string; commands?: string[] }) {
+  if (!commands || commands.length === 0) return null
+  return (
+    <div className="mt-2">
+      <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-faint">{title}</div>
+      <div className="mt-1 space-y-1">
+        {commands.slice(0, 3).map((command) => (
+          <code key={command} className="block break-all font-mono text-[10px] text-faint">
+            {command}
+          </code>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+export function MetadataCard({ metadata, dependencyEnvironment, projectUnderstanding }: MetadataCardProps) {
   if (!metadata) return null
+  const identity = projectUnderstanding?.project_identity
+  const runnability = projectUnderstanding?.runnability
+  const entryPoints = projectUnderstanding?.entry_points || []
 
   const items = [
     { label: 'Files', value: metadata.total_files },
@@ -59,6 +79,53 @@ export function MetadataCard({ metadata, dependencyEnvironment }: MetadataCardPr
         <PresenceChip label="pyproject.toml" present={metadata.has_pyproject} />
         <PresenceChip label=".gitignore" present={metadata.has_gitignore} />
       </div>
+      {identity && (
+        <div className="mt-4 rounded-xl border border-border bg-base p-3">
+          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-faint">
+            Project identity
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            {identity.project_type || 'Unknown project'} · {identity.package_layout || 'unknown layout'} · confidence {identity.confidence || 'unknown'}.
+          </p>
+          {(identity.frameworks?.length || identity.interfaces?.length) && (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {[...(identity.frameworks || []), ...(identity.interfaces || [])].slice(0, 8).map((item) => (
+                <span key={item} className="rounded-full border border-border bg-surface px-2 py-1 text-[10px] text-faint">
+                  {item}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {runnability && (
+        <div className="mt-4 rounded-xl border border-border bg-base p-3">
+          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-faint">
+            Runnability
+          </div>
+          <p className="mt-1 text-xs leading-5 text-muted">
+            Status: {runnability.status || 'unknown'}. Confidence: {runnability.confidence || 'unknown'}.
+          </p>
+          <CommandList title="Install" commands={runnability.install_commands} />
+          <CommandList title="Run" commands={runnability.run_commands} />
+          <CommandList title="Test" commands={runnability.test_commands} />
+        </div>
+      )}
+      {entryPoints.length > 0 && (
+        <details className="mt-4 rounded-xl border border-border bg-base p-3">
+          <summary className="cursor-pointer text-[10px] font-medium uppercase tracking-[0.14em] text-faint">
+            Entry points
+          </summary>
+          <div className="mt-2 space-y-2">
+            {entryPoints.slice(0, 5).map((entry) => (
+              <div key={`${entry.kind}-${entry.path}-${entry.command}`} className="text-xs leading-5 text-muted">
+                <span className="text-primary">{entry.kind || 'entry'}</span>: {entry.path}
+                {entry.command && <code className="ml-1 font-mono text-[10px] text-faint">{entry.command}</code>}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
       {dependencyEnvironment && (
         <div className="mt-4 rounded-xl border border-border bg-base p-3">
           <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-faint">

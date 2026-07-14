@@ -76,6 +76,7 @@ function CategoryBar({
 export function ResultOverview({ data }: ResultOverviewProps) {
   const scoring = data.audit.scoring
   const diagnosis = data.audit.diagnosis
+  const executive = data.audit.executive_report
   const hardFlags = diagnosis?.hard_flags || []
   const evidenceConfidence = diagnosis?.evidence_confidence
   const evidenceLabel = evidenceConfidence?.label || 'unknown'
@@ -124,15 +125,23 @@ export function ResultOverview({ data }: ResultOverviewProps) {
             </div>
 
             <h2 className="text-2xl font-semibold tracking-tight text-primary">
-              {formatVerdict(diagnosis?.repository_health?.label)}
+              {executive?.headline || formatVerdict(diagnosis?.repository_health?.label)}
             </h2>
             <p className="mt-2 break-all font-mono text-xs text-faint">
               {compactSource(data.source_value)}
             </p>
-            {diagnosis?.repository_health?.summary && (
+            {(executive?.one_sentence_summary || diagnosis?.repository_health?.summary) && (
               <p className="mt-4 max-w-2xl text-sm leading-6 text-muted">
-                {diagnosis.repository_health.summary}
+                {executive?.one_sentence_summary || diagnosis?.repository_health?.summary}
               </p>
+            )}
+            {executive?.next_best_step && (
+              <div className="mt-4 rounded-xl border border-brand/25 bg-brand/5 p-3">
+                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-brand">
+                  Next best step
+                </div>
+                <p className="mt-1 text-sm leading-6 text-primary">{executive.next_best_step}</p>
+              </div>
             )}
 
             {hardFlags.length > 0 ? (

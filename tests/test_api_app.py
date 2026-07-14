@@ -88,6 +88,10 @@ def test_audit_local_path_success():
     assert data["profile_id"] == "student_portfolio"
     assert "audit" in data
     assert "advisor" in data
+    assert "project_understanding" in data["audit"]
+    assert "executive_report" in data["audit"]
+    assert "recommendations_v2" in data["audit"]
+    assert data["audit"]["executive_report"]["verdict"] == data["audit"]["diagnosis"]["repository_health"]["label"]
     assert data["markdown"] is None
 
 
@@ -282,6 +286,9 @@ def test_audit_include_markdown_success(tmp_path: Path):
     markdown = data.get("markdown")
     assert markdown is not None
     assert "# DrRepo Audit Report" in markdown
+    assert "## Executive Summary" in markdown
+    assert "## Project Identity" in markdown
+    assert "## Top Actions" in markdown
 
 
 def test_audit_github_url_markdown_prefers_original_source(monkeypatch, tmp_path: Path):

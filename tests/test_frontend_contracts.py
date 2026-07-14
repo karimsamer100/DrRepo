@@ -13,3 +13,12 @@ def test_frontend_evidence_labels_distinguish_findings_from_clean():
     assert "Completed - ${findingCount}" in source
     assert "verified with findings" in source
     assert "verified clean" in source
+
+
+def test_frontend_types_include_repository_intelligence_contracts():
+    source = Path("frontend/src/types/api.ts").read_text(encoding="utf-8")
+
+    assert "export interface ProjectUnderstanding" in source
+    assert "export interface ExecutiveReport" in source
+    assert "export interface StructuredRecommendation" in source
+    assert "recommendations_v2?: StructuredRecommendation[]" in source

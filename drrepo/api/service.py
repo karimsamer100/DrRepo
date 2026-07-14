@@ -51,7 +51,7 @@ def run_audit_service(
     from drrepo.audit import build_audit
 
     try:
-        audit = build_audit(audit_path, source_type=source_type, analysis_mode=mode)
+        audit = build_audit(audit_path, source_type=source_type, analysis_mode=mode, profile_id=profile_id)
     finally:
         if workspace is not None:
             from drrepo.input.workspace import cleanup_workspace

@@ -19,6 +19,7 @@ from drrepo.diagnosis import build_diagnosis
 from drrepo.remediation.suggestions import generate_suggestions, count_suggestions_by_severity
 from drrepo.analyzers.registry import validate_analysis_mode
 from drrepo.environment import detect_dependency_environment
+from drrepo.intelligence import build_repository_intelligence
 
 
 def _run_with_mode(fn, root: str | Path, *, source_type: str, analysis_mode: str):
@@ -47,6 +48,7 @@ def build_audit(
     execute_tests: bool | None = None,
     source_type: str = "local_path",
     analysis_mode: str | None = None,
+    profile_id: str = "student_portfolio",
 ) -> Dict[str, Any]:
     """Build the full audit dictionary for the given path.
 
@@ -102,5 +104,6 @@ def build_audit(
         "total": len(remediation),
         "by_severity": count_suggestions_by_severity(remediation),
     }
+    scanned.update(build_repository_intelligence(scanned, profile_id=profile_id))
 
     return scanned

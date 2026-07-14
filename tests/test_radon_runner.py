@@ -96,9 +96,11 @@ def test_parse_radon_not_dict():
 
 
 def test_parse_radon_file_not_list():
-    raw = json.dumps({"app.py": {}})
+    raw = json.dumps({"app.py": {"error": "invalid syntax"}})
     res = parse_radon_cc_json(raw)
-    assert res.status == "failed_to_run"
+    assert res.status == "partial"
+    assert res.summary["parse_error_count"] == 1
+    assert res.findings[0].code == "RADON-PARSE-ERROR"
     assert res.errors and len(res.errors) > 0
 
 

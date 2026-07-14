@@ -50,17 +50,23 @@ def parse_radon_cc_json(raw_output: str) -> ToolResult:
     total = 0
     sum_complexity = 0
     max_complexity = 0
+    parse_errors: list[str] = []
 
     for file_path, blocks in data.items():
         if not isinstance(blocks, list):
-            return ToolResult(
-                tool=tool,
-                status="failed_to_run",
-                summary={"block_count": 0, "max_complexity": 0, "average_complexity": 0},
-                findings=[],
-                errors=[f"Radon file entry for {file_path} is not a list"],
-                raw_output=raw_output,
+            error_message = blocks.get("error") if isinstance(blocks, dict) else None
+            reason = str(error_message or "Radon file entry is not a block list")
+            parse_errors.append(f"{file_path}: {reason}")
+            findings.append(
+                ToolFinding(
+                    tool=tool,
+                    message=f"Radon could not parse {file_path}: {reason}",
+                    file_path=str(file_path),
+                    severity="medium",
+                    code="RADON-PARSE-ERROR",
+                )
             )
+            continue
         for blk in blocks:
             if not isinstance(blk, dict):
                 continue
@@ -101,16 +107,19 @@ def parse_radon_cc_json(raw_output: str) -> ToolResult:
 
     average = sum_complexity / total if total > 0 else 0
 
+    status = "partial" if parse_errors else "completed"
     return ToolResult(
         tool=tool,
-        status="completed",
+        status=status,
         summary={
             "block_count": total,
             "finding_count": len(findings),
+            "parse_error_count": len(parse_errors),
             "max_complexity": max_complexity,
             "average_complexity": average,
         },
         findings=findings,
+        errors=parse_errors,
         raw_output=raw_output,
     )
 

@@ -33,13 +33,18 @@ function ResultLayout({ data }: { data: AuditResponse }) {
       <div className="min-w-0 space-y-6">
         <ResultOverview data={data} />
         <FindingsList audit={data.audit} />
-        <AdvisorPanel advisor={data.advisor} profileId={data.profile_id} />
+        <AdvisorPanel
+          advisor={data.advisor}
+          profileId={data.profile_id}
+          recommendations={data.audit.recommendations_v2}
+        />
       </div>
       <aside className="min-w-0 space-y-5 lg:sticky lg:top-6">
         <AnalyzerStatusGrid sections={analyzerSections} />
         <MetadataCard
           metadata={data.audit.metadata}
           dependencyEnvironment={data.audit.dependency_environment}
+          projectUnderstanding={data.audit.project_understanding}
         />
         <ExportActions data={data} />
         <MarkdownPreview content={data.markdown} />

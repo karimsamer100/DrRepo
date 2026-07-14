@@ -106,8 +106,9 @@ def build_evidence_confidence(entries: Iterable[Any]) -> dict[str, Any]:
     ]
     unavailable = [tool for tool, status in statuses.items() if status in (None, "not_available")]
     skipped = [tool for tool, status in statuses.items() if status in ("not_applicable", "skipped_by_config")]
-    failed = [tool for tool, status in statuses.items() if status in ("failed_to_run", "partial")]
-    limited_tools = unavailable + skipped + failed
+    failed = [tool for tool, status in statuses.items() if status == "failed_to_run"]
+    incomplete = [tool for tool, status in statuses.items() if status == "partial"]
+    limited_tools = unavailable + skipped + failed + incomplete
 
     if not limited_tools:
         return {
@@ -117,6 +118,7 @@ def build_evidence_confidence(entries: Iterable[Any]) -> dict[str, Any]:
             "missing_optional_tools": [],
             "skipped_optional_tools": [],
             "failed_optional_tools": [],
+            "incomplete_optional_tools": [],
         }
 
     label = "limited" if len(limited_tools) * 2 >= len(OPTIONAL_EVIDENCE_TOOLS) else "partial"
@@ -124,9 +126,10 @@ def build_evidence_confidence(entries: Iterable[Any]) -> dict[str, Any]:
     unavailable_text = ", ".join(unavailable) if unavailable else "none"
     skipped_text = ", ".join(skipped) if skipped else "none"
     failed_text = ", ".join(failed) if failed else "none"
+    incomplete_text = ", ".join(incomplete) if incomplete else "none"
     summary = (
         f"{title}: {len(available)} of {len(OPTIONAL_EVIDENCE_TOOLS)} optional tools were available. "
-        f"Unavailable: {unavailable_text}. Skipped: {skipped_text}. Failed: {failed_text}."
+        f"Unavailable: {unavailable_text}. Skipped: {skipped_text}. Failed: {failed_text}. Incomplete: {incomplete_text}."
     )
     return {
         "label": label,
@@ -135,4 +138,5 @@ def build_evidence_confidence(entries: Iterable[Any]) -> dict[str, Any]:
         "missing_optional_tools": unavailable,
         "skipped_optional_tools": skipped,
         "failed_optional_tools": failed,
+        "incomplete_optional_tools": incomplete,
     }

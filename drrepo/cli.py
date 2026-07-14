@@ -35,7 +35,7 @@ def main() -> None:
     """DrRepo command line interface."""
 
 
-def _build_audit_cli(repo_path: str | Path, *, source_type: str, analysis_mode: str):
+def _build_audit_cli(repo_path: str | Path, *, source_type: str, analysis_mode: str, profile_id: str):
     execute_tests = source_type == "local_path" and analysis_mode == "deep_local"
     try:
         return build_audit(
@@ -43,6 +43,7 @@ def _build_audit_cli(repo_path: str | Path, *, source_type: str, analysis_mode: 
             source_type=source_type,
             analysis_mode=analysis_mode,
             execute_tests=execute_tests,
+            profile_id=profile_id,
         )
     except TypeError as exc:
         if "unexpected keyword" not in str(exc):
@@ -70,6 +71,15 @@ def audit(
         path.startswith("https://github.com/") or path.startswith("http://github.com/") or path.startswith("git@github.com:")
     )
 
+    if ai and profile is None:
+        profile = "student_portfolio"
+
+    if profile is not None:
+        try:
+            validate_profile_id(profile)
+        except ValueError as exc:
+            raise typer.BadParameter(f"Invalid profile: {profile}") from exc
+
     # If it looks like a GitHub URL, validate it strictly
     if is_url and not is_public_github_repo_url(path):
         raise typer.BadParameter("Invalid GitHub repository URL.")
@@ -88,7 +98,7 @@ def audit(
                 # Ensure cleanup happens in finally
                 raise typer.BadParameter(str(exc)) from exc
 
-            audit_result = _build_audit_cli(repo_path, source_type="github_url", analysis_mode=mode)
+            audit_result = _build_audit_cli(repo_path, source_type="github_url", analysis_mode=mode, profile_id=profile or "student_portfolio")
             # annotate source for URL audits
             audit_result["source"] = {"type": "github_url", "value": path}
         else:
@@ -98,7 +108,7 @@ def audit(
                 raise typer.BadParameter(str(exc)) from exc
             # Local path flow
             try:
-                audit_result = _build_audit_cli(Path(path), source_type="local_path", analysis_mode=mode)
+                audit_result = _build_audit_cli(Path(path), source_type="local_path", analysis_mode=mode, profile_id=profile or "student_portfolio")
             except FileNotFoundError as exc:
                 raise typer.BadParameter(str(exc)) from exc
             except NotADirectoryError as exc:
@@ -114,9 +124,6 @@ def audit(
     fmt = (output_format or "json").lower()
     if fmt not in ("json", "markdown", "summary"):
         raise typer.BadParameter("Invalid format: must be 'json', 'markdown', or 'summary'")
-
-    if ai and profile is None:
-        profile = "student_portfolio"
 
     advisor_report = None
     llm_router = None
