@@ -9,32 +9,50 @@ from .models import ToolResult, tool_result_to_dict, make_tool_result
 from .ruff_runner import run_ruff
 from .bandit_runner import run_bandit
 from .radon_runner import run_radon
+from .registry import (
+    AnalysisMode,
+    SourceType,
+    definitions_for,
+    should_run,
+    skipped_result,
+    timed_run,
+)
 
 
-def run_static_analyzers(path: str | Path) -> List[ToolResult]:
+def run_static_analyzers(
+    path: str | Path,
+    *,
+    source_type: SourceType = "local_path",
+    analysis_mode: AnalysisMode = "deep_local",
+) -> List[ToolResult]:
     # Validate path using resolver; allow resolver exceptions to propagate
     resolved = resolve_local_path(path)
 
     results: List[ToolResult] = []
 
-    # Run in specified order, catching unexpected exceptions and converting to ToolResult
-    try:
-        r = run_ruff(resolved)
-    except Exception as exc:  # unexpected
-        r = make_tool_result("ruff", "failed_to_run", summary={}, findings=[], errors=[str(exc)], raw_output=None)
-    results.append(r)
-
-    try:
-        b = run_bandit(resolved)
-    except Exception as exc:
-        b = make_tool_result("bandit", "failed_to_run", summary={}, findings=[], errors=[str(exc)], raw_output=None)
-    results.append(b)
-
-    try:
-        ra = run_radon(resolved)
-    except Exception as exc:
-        ra = make_tool_result("radon", "failed_to_run", summary={}, findings=[], errors=[str(exc)], raw_output=None)
-    results.append(ra)
+    for definition in definitions_for("static_analysis"):
+        allowed, reason = should_run(definition, source_type, analysis_mode)
+        if not allowed:
+            results.append(skipped_result(definition, analysis_mode, reason or "Skipped by analysis policy."))
+            continue
+        runner = {
+            "ruff": run_ruff,
+            "bandit": run_bandit,
+            "radon": run_radon,
+        }[definition.analyzer_id]
+        try:
+            result = timed_run(lambda runner=runner: runner(resolved), analysis_mode=analysis_mode)
+        except Exception as exc:  # unexpected
+            result = make_tool_result(
+                definition.analyzer_id,
+                "failed_to_run",
+                summary={},
+                findings=[],
+                errors=[str(exc)],
+                raw_output=None,
+                execution_mode=analysis_mode,
+            )
+        results.append(result)
 
     return results
 

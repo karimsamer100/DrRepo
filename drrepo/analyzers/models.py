@@ -30,6 +30,13 @@ class ToolResult:
     findings: List[ToolFinding] = field(default_factory=list)
     errors: List[str] = field(default_factory=list)
     raw_output: Optional[str] = None
+    duration_ms: Optional[int] = None
+    execution_mode: Optional[str] = None
+    skipped_reason: Optional[str] = None
+    unavailable_reason: Optional[str] = None
+    tool_version: Optional[str] = None
+    analysis_outcome: Optional[str] = None
+    evidence_impact: Optional[str] = None
 
     def __post_init__(self) -> None:
         if self.status not in allowed_statuses():
@@ -67,6 +74,13 @@ def tool_result_to_dict(result: ToolResult) -> Dict[str, Any]:
         "findings": [tool_finding_to_dict(f) for f in result.findings],
         "errors": list(result.errors),
         "raw_output": result.raw_output,
+        "duration_ms": result.duration_ms,
+        "execution_mode": result.execution_mode,
+        "skipped_reason": result.skipped_reason,
+        "unavailable_reason": result.unavailable_reason,
+        "tool_version": result.tool_version,
+        "analysis_outcome": result.analysis_outcome,
+        "evidence_impact": result.evidence_impact,
     }
 
 

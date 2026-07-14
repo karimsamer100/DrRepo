@@ -37,12 +37,18 @@ def test_score_with_findings():
 
 
 def test_score_status_penalties():
-    r1 = make_result("a", "failed_to_run")
-    r2 = make_result("b", "partial")
+    r1 = make_result("readme", "failed_to_run")
+    r2 = make_result("structure", "partial")
     res = score_tool_results([r1, r2])
     # 10 + 5 = 15
     assert res["penalty"] == 15
     assert res["score"] == 85
+
+
+def test_optional_failed_analyzer_does_not_reduce_numeric_score_by_itself():
+    res = score_tool_results([make_result("radon", "failed_to_run")])
+    assert res["score"] == 100
+    assert res["penalty"] == 0
 
 
 def test_score_no_penalty_for_unavailable_or_not_applicable():

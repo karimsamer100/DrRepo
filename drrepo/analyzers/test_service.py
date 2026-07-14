@@ -7,45 +7,58 @@ from ..input.resolver import resolve_local_path
 from .models import ToolResult, tool_result_to_dict, make_tool_result
 from .pytest_runner import run_pytest
 from .coverage_runner import run_coverage
+from .registry import (
+    AnalysisMode,
+    SourceType,
+    definitions_for,
+    should_run,
+    skipped_result,
+    timed_run,
+)
 
 
 REMOTE_TEST_SKIP_REASON = "Skipped for remote GitHub audit safety."
 
 
-def _skipped_remote_test_result(tool: str) -> ToolResult:
-    return make_tool_result(
-        tool,
-        "skipped_by_config",
-        summary={"reason": REMOTE_TEST_SKIP_REASON, "outcome": "skipped_for_remote_safety"},
-        findings=[],
-        errors=[],
-        raw_output=None,
-    )
-
-
-def run_test_analyzers(path: str | Path, *, execute_tests: bool = True) -> List[ToolResult]:
+def run_test_analyzers(
+    path: str | Path,
+    *,
+    execute_tests: bool | None = None,
+    source_type: SourceType = "local_path",
+    analysis_mode: AnalysisMode = "deep_local",
+) -> List[ToolResult]:
     # Validate path; allow resolver errors to propagate so caller can handle them
     resolved = resolve_local_path(path)
 
-    if not execute_tests:
-        return [
-            _skipped_remote_test_result("pytest"),
-            _skipped_remote_test_result("coverage"),
-        ]
+    if execute_tests is not None:
+        analysis_mode = "deep_local" if execute_tests else "quick_safe"
+        if not execute_tests:
+            source_type = "github_url"
 
     results: List[ToolResult] = []
 
-    try:
-        p = run_pytest(resolved)
-    except Exception as exc:
-        p = make_tool_result("pytest", "failed_to_run", summary={}, findings=[], errors=[str(exc)], raw_output=None)
-    results.append(p)
-
-    try:
-        c = run_coverage(resolved)
-    except Exception as exc:
-        c = make_tool_result("coverage", "failed_to_run", summary={}, findings=[], errors=[str(exc)], raw_output=None)
-    results.append(c)
+    for definition in definitions_for("test_analysis"):
+        allowed, reason = should_run(definition, source_type, analysis_mode)
+        if not allowed:
+            results.append(skipped_result(definition, analysis_mode, reason or REMOTE_TEST_SKIP_REASON))
+            continue
+        runner = {
+            "pytest": run_pytest,
+            "coverage": run_coverage,
+        }[definition.analyzer_id]
+        try:
+            result = timed_run(lambda runner=runner: runner(resolved), analysis_mode=analysis_mode)
+        except Exception as exc:
+            result = make_tool_result(
+                definition.analyzer_id,
+                "failed_to_run",
+                summary={},
+                findings=[],
+                errors=[str(exc)],
+                raw_output=None,
+                execution_mode=analysis_mode,
+            )
+        results.append(result)
 
     return results
 

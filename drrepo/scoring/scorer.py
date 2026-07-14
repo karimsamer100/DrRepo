@@ -4,6 +4,7 @@ from typing import List, Dict, Any
 
 from drrepo.analyzers.models import ToolResult, ToolFinding
 from drrepo.assessment import cap_score_for_hard_flags, derive_hard_flags
+from drrepo.analyzers.registry import is_core_analyzer
 
 
 def severity_penalty(severity: str | None) -> int:
@@ -28,9 +29,9 @@ def status_penalty(result: ToolResult) -> int:
     remote safety skips are different: they mean DrRepo did not observe a
     passing test signal, so the testing category must not look perfect.
     """
-    if result.status == "failed_to_run":
+    if result.status == "failed_to_run" and (is_core_analyzer(result.tool) or result.tool == "pytest"):
         return 10
-    if result.status == "partial":
+    if result.status == "partial" and (is_core_analyzer(result.tool) or result.tool == "pytest"):
         return 5
     if result.tool == "pytest" and result.status == "not_applicable":
         outcome = (result.summary or {}).get("outcome") if isinstance(result.summary, dict) else None

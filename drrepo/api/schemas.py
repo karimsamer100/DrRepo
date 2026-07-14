@@ -23,6 +23,7 @@ class ProfilesResponse(BaseModel):
 class AuditRequest(BaseModel):
     source_type: Literal["local_path", "github_url"]
     source_value: str = Field(..., min_length=1)
+    analysis_mode: Literal["quick_safe", "deep_local"] | None = None
     profile_id: str = "student_portfolio"
     ai: bool = False
     include_markdown: bool = False
@@ -32,7 +33,17 @@ class AuditResponse(BaseModel):
     status: str
     source_type: str
     source_value: str
+    analysis_mode: str
     profile_id: str
     audit: dict[str, Any]
     advisor: dict[str, Any] | None
     markdown: str | None
+
+
+class CapabilitiesResponse(BaseModel):
+    supported_analysis_modes: list[dict[str, Any]]
+    supported_source_types: list[str]
+    analyzers: list[dict[str, Any]]
+    docker_isolated_execution: dict[str, Any]
+    remote_execution_safety_policy: str
+    setup: dict[str, Any]

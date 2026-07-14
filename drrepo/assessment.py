@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Iterable
 
+from drrepo.analyzers.registry import is_core_analyzer
+
 
 OPTIONAL_EVIDENCE_TOOLS = ("ruff", "bandit", "radon", "coverage", "pytest")
 
@@ -52,7 +54,7 @@ def derive_hard_flags(entries: Iterable[Any]) -> list[str]:
         summary = _get(entry, "summary") or {}
         outcome = summary.get("outcome") if isinstance(summary, dict) else None
 
-        if status in ("failed_to_run", "partial"):
+        if status in ("failed_to_run", "partial") and is_core_analyzer(str(tool)):
             flags.append("ANALYZER_ERRORS_PRESENT")
 
         if tool == "readme" and findings:
@@ -66,7 +68,7 @@ def derive_hard_flags(entries: Iterable[Any]) -> list[str]:
             finding_codes = {_finding_value(f, "code") for f in findings}
             if "PYTEST-FAILED" in finding_codes or outcome == "failed_tests":
                 flags.append("TESTS_FAILING")
-            if "PYTEST-ERROR" in finding_codes or outcome in {"collection_error", "env_error"}:
+            if status == "failed_to_run" or "PYTEST-ERROR" in finding_codes or outcome in {"collection_error", "env_error", "timeout"}:
                 flags.append("TESTS_COULD_NOT_RUN")
 
     return first_seen_dedup(flags)
@@ -100,11 +102,12 @@ def build_evidence_confidence(entries: Iterable[Any]) -> dict[str, Any]:
     available = [
         tool
         for tool, status in statuses.items()
-        if status not in (None, "not_available", "not_applicable", "skipped_by_config")
+        if status not in (None, "not_available", "not_applicable", "skipped_by_config", "failed_to_run", "partial")
     ]
     unavailable = [tool for tool, status in statuses.items() if status in (None, "not_available")]
     skipped = [tool for tool, status in statuses.items() if status in ("not_applicable", "skipped_by_config")]
-    limited_tools = unavailable + skipped
+    failed = [tool for tool, status in statuses.items() if status in ("failed_to_run", "partial")]
+    limited_tools = unavailable + skipped + failed
 
     if not limited_tools:
         return {
@@ -113,15 +116,17 @@ def build_evidence_confidence(entries: Iterable[Any]) -> dict[str, Any]:
             "available_optional_tools": available,
             "missing_optional_tools": [],
             "skipped_optional_tools": [],
+            "failed_optional_tools": [],
         }
 
     label = "limited" if len(limited_tools) * 2 >= len(OPTIONAL_EVIDENCE_TOOLS) else "partial"
     title = "Limited evidence" if label == "limited" else "Partial evidence"
     unavailable_text = ", ".join(unavailable) if unavailable else "none"
     skipped_text = ", ".join(skipped) if skipped else "none"
+    failed_text = ", ".join(failed) if failed else "none"
     summary = (
         f"{title}: {len(available)} of {len(OPTIONAL_EVIDENCE_TOOLS)} optional tools were available. "
-        f"Unavailable: {unavailable_text}. Skipped: {skipped_text}."
+        f"Unavailable: {unavailable_text}. Skipped: {skipped_text}. Failed: {failed_text}."
     )
     return {
         "label": label,
@@ -129,4 +134,5 @@ def build_evidence_confidence(entries: Iterable[Any]) -> dict[str, Any]:
         "available_optional_tools": available,
         "missing_optional_tools": unavailable,
         "skipped_optional_tools": skipped,
+        "failed_optional_tools": failed,
     }

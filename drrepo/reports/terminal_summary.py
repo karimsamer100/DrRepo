@@ -10,10 +10,15 @@ def _limitation_reason(entry: Dict[str, Any]) -> str | None:
     status = entry.get("status")
     summary = entry.get("summary") if isinstance(entry.get("summary"), dict) else {}
     if status == "skipped_by_config":
-        reason = summary.get("reason") or "Skipped by configuration."
+        reason = entry.get("skipped_reason") or summary.get("reason") or "Skipped by configuration."
         return f"{tool}: {reason}"
     if status == "not_available":
-        return f"{tool}: tool unavailable in this environment."
+        reason = entry.get("unavailable_reason") or "tool unavailable in this environment."
+        return f"{tool}: {reason}"
+    if status == "failed_to_run":
+        errors = entry.get("errors") or []
+        reason = str(errors[0]).strip() if isinstance(errors, list) and errors else "Analyzer failed to run."
+        return f"{tool}: analyzer failed to run ({reason})"
     return None
 
 
@@ -38,6 +43,10 @@ def render_terminal_summary(audit: Dict[str, Any]) -> str:
         lines.append(f"Source: {source_value}")
     else:
         lines.append(f"Path: {path}")
+    analysis = _safe_get(audit, "analysis", {}) or {}
+    if analysis:
+        lines.append(f"Analysis mode: {_safe_get(analysis, 'mode', 'unknown')}")
+        lines.append(f"Executes repository code: {_safe_get(analysis, 'executes_repository_code', False)}")
     lines.append(f"Overall score: {overall}")
     # Repository & portfolio scores
     repo_health_score = _safe_get(scoring, "repository_health_score")

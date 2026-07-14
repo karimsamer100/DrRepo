@@ -6,6 +6,7 @@ from drrepo.assessment import (
     derive_hard_flags,
     first_seen_dedup,
 )
+from drrepo.analyzers.registry import is_core_analyzer
 
 
 def _label_for_score(score: float | int | None) -> str:
@@ -63,6 +64,8 @@ def build_diagnosis(audit: Dict[str, Any]) -> Dict[str, Any]:
             # Missing optional evidence
             if status == "not_available":
                 limitations.append("Some optional analysis tools were not available.")
+            if status in {"failed_to_run", "partial"} and not is_core_analyzer(str(tool)):
+                limitations.append(f"Optional analyzer {tool} could not complete; evidence confidence is reduced.")
             if status == "skipped_by_config" and isinstance(summary, dict):
                 reason = summary.get("reason")
                 if isinstance(reason, str) and reason:

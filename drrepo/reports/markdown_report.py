@@ -1,4 +1,5 @@
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 
 def _safe_get(d: Dict[str, Any], key: str, default: Any = None) -> Any:
     return d.get(key, default) if isinstance(d, dict) else default
@@ -37,10 +38,15 @@ def _limitation_reason(entry: Dict[str, Any]) -> str | None:
     status = entry.get("status")
     summary = entry.get("summary") if isinstance(entry.get("summary"), dict) else {}
     if status == "skipped_by_config":
-        reason = summary.get("reason") or "Skipped by configuration."
+        reason = entry.get("skipped_reason") or summary.get("reason") or "Skipped by configuration."
         return f"{tool}: {reason}"
     if status == "not_available":
-        return f"{tool}: tool unavailable in this environment."
+        reason = entry.get("unavailable_reason") or "tool unavailable in this environment."
+        return f"{tool}: {reason}"
+    if status == "failed_to_run":
+        errors = entry.get("errors") or []
+        reason = str(errors[0]).strip() if isinstance(errors, list) and errors else "Analyzer failed to run."
+        return f"{tool}: analyzer failed to run ({reason})"
     return None
 
 
@@ -49,6 +55,17 @@ def _genuine_errors(entry: Dict[str, Any]) -> List[str]:
         return []
     errors = entry.get("errors") or []
     return [str(error) for error in errors if str(error).strip()] if isinstance(errors, list) else []
+
+
+def _display_location(file_path: Any, audit_root: Any, source_value: Any) -> str:
+    if not isinstance(file_path, str) or not file_path:
+        return ""
+    if source_value and isinstance(audit_root, str):
+        try:
+            return str(Path(file_path).resolve().relative_to(Path(audit_root).resolve()))
+        except Exception:
+            pass
+    return file_path
 
 
 def render_markdown_report(audit: Dict[str, Any]) -> str:
@@ -70,11 +87,15 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
     source = _safe_get(audit, "source", {}) or {}
     source_value = _safe_get(source, "value")
     status = _safe_get(audit, "status", "N/A")
+    analysis = _safe_get(audit, "analysis", {}) or {}
     if source_value:
         lines.append(f"- **Source**: {source_value}")
     else:
         lines.append(f"- **Path**: {path}")
     lines.append(f"- **Status**: {status}")
+    if analysis:
+        lines.append(f"- **Analysis mode**: {_safe_get(analysis, 'mode', 'N/A')}")
+        lines.append(f"- **Executes repository code**: {_format_bool(_safe_get(analysis, 'executes_repository_code'))}")
 
     # Score Summary
     lines.append("")
@@ -251,7 +272,7 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
                     line = f.get("line")
                     loc = ""
                     if file_path:
-                        loc = file_path
+                        loc = _display_location(file_path, path, source_value)
                         if line:
                             loc = f"{loc}:{line}"
                     loc_part = f" ({loc})" if loc else ""

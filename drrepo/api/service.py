@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+from drrepo.analyzers.registry import validate_analysis_mode
 
 
 def run_audit_service(
@@ -10,6 +11,7 @@ def run_audit_service(
     profile_id: str = "student_portfolio",
     ai: bool = False,
     include_markdown: bool = False,
+    analysis_mode: str | None = None,
 ) -> dict[str, Any]:
     if ai:
         raise ValueError("AI advisor mode is not supported via the API yet.")
@@ -17,6 +19,7 @@ def run_audit_service(
     from drrepo.advisor.profiles import validate_profile_id
 
     validate_profile_id(profile_id)
+    mode = validate_analysis_mode(source_type, analysis_mode)
 
     workspace: Path | None = None
     audit_path: str | Path
@@ -48,7 +51,7 @@ def run_audit_service(
     from drrepo.audit import build_audit
 
     try:
-        audit = build_audit(audit_path, execute_tests=(source_type != "github_url"))
+        audit = build_audit(audit_path, source_type=source_type, analysis_mode=mode)
     finally:
         if workspace is not None:
             from drrepo.input.workspace import cleanup_workspace
@@ -60,8 +63,7 @@ def run_audit_service(
                 # must not override a successful audit response.
                 pass
 
-    if source_type == "github_url":
-        audit["source"] = {"type": source_type, "value": source_value}
+    audit["source"] = {"type": source_type, "value": source_value}
 
     from drrepo.advisor.service import build_advisor_result
 
@@ -80,6 +82,7 @@ def run_audit_service(
         "status": audit.get("status", "ok"),
         "source_type": source_type,
         "source_value": source_value,
+        "analysis_mode": mode,
         "profile_id": profile_id,
         "audit": audit,
         "advisor": advisor_report,

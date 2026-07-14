@@ -1,5 +1,7 @@
 from typing import Dict, List, Any, Tuple
 
+from drrepo.analyzers.registry import is_core_analyzer
+
 
 def _mk_suggestion(section: str, tool: str, code: str | None, severity: str | None, title: str, message: str, action: str) -> Dict[str, Any]:
     return {
@@ -121,13 +123,20 @@ def generate_suggestions(audit: Dict[str, Any]) -> List[Dict[str, Any]]:
             # Error fallback (if there are errors and status is not 'not_available')
             if status is not None and status != "not_available":
                 if isinstance(errors, list) and errors:
-                    title = "Investigate analyzer error"
-                    action = "Review analyzer stderr/output and fix configuration or execution issues."
+                    if tool and not is_core_analyzer(str(tool)):
+                        title = f"Investigate optional analyzer failure: {tool}"
+                        action = "Check the DrRepo analysis environment or analyzer configuration; this is not automatically a repository defect."
+                        code = "ANALYZER-ENVIRONMENT-ERROR"
+                        severity = "low"
+                    else:
+                        title = "Investigate analyzer error"
+                        action = "Review analyzer stderr/output and fix configuration or execution issues."
+                        code = "ANALYZER-ERROR"
+                        severity = None
                     msg = "; ".join(str(e) for e in errors)
-                    code = "ANALYZER-ERROR"
                     key = (section, tool, code, title, action)
                     if key not in seen:
-                        suggestions.append(_mk_suggestion(section, tool or "", code, None, title, msg, action))
+                        suggestions.append(_mk_suggestion(section, tool or "", code, severity, title, msg, action))
                         seen.add(key)
 
     return suggestions

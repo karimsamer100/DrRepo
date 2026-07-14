@@ -80,15 +80,14 @@ def test_pytest_findings_reduce_testing(monkeypatch, tmp_path: Path):
     assert scoring.get("categories", {}).get("testing") < 100
 
 
-def test_coverage_partial_and_failed_reduce_testing(monkeypatch, tmp_path: Path):
+def test_coverage_optional_partial_and_failed_do_not_reduce_observed_testing_score(monkeypatch, tmp_path: Path):
     c_partial = ToolResult(tool="coverage", status="partial")
     scoring_partial = _scoring_for(monkeypatch, tmp_path, tests=[c_partial])
-    assert scoring_partial.get("categories", {}).get("testing") < 100
+    assert scoring_partial.get("categories", {}).get("testing") == 100
 
     c_failed = ToolResult(tool="coverage", status="failed_to_run")
     scoring_failed = _scoring_for(monkeypatch, tmp_path, tests=[c_failed])
-    # failed_to_run should reduce by 10 -> expect 90
-    assert scoring_failed.get("categories", {}).get("testing") <= 90
+    assert scoring_failed.get("categories", {}).get("testing") == 100
 
 
 def test_readme_finding_reduces_documentation(monkeypatch, tmp_path: Path):
@@ -120,11 +119,11 @@ def test_not_available_does_not_reduce(monkeypatch, tmp_path: Path):
     assert scoring.get("categories", {}).get("code_quality") == 100
 
 
-def test_failed_to_run_and_partial_status_penalties(monkeypatch, tmp_path: Path):
+def test_optional_failed_to_run_and_partial_do_not_reduce_observed_score(monkeypatch, tmp_path: Path):
     r_failed = ToolResult(tool="ruff", status="failed_to_run")
     scoring_failed = _scoring_for(monkeypatch, tmp_path, static=[r_failed])
-    assert scoring_failed.get("categories", {}).get("code_quality") == 90
+    assert scoring_failed.get("categories", {}).get("code_quality") == 100
 
     r_partial = ToolResult(tool="ruff", status="partial")
     scoring_partial = _scoring_for(monkeypatch, tmp_path, static=[r_partial])
-    assert scoring_partial.get("categories", {}).get("code_quality") == 95
+    assert scoring_partial.get("categories", {}).get("code_quality") == 100

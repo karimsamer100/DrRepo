@@ -102,6 +102,12 @@ def test_errors_rendered():
     assert "ruff crashed" in md
 
 
+def test_failed_analyzer_renders_concise_limitation_reason():
+    audit = {"static_analysis": [{"tool": "radon", "status": "failed_to_run", "errors": ["radon crashed"], "findings": []}]}
+    md = render_markdown_report(audit)
+    assert "radon: analyzer failed to run (radon crashed)" in md
+
+
 def test_not_available_tools_render_as_limitations_not_errors():
     audit = {
         "static_analysis": [

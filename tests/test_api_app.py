@@ -62,6 +62,18 @@ def test_profiles():
     assert "student_portfolio" in profile_ids
 
 
+def test_capabilities_endpoint():
+    response = client.get("/api/capabilities")
+    assert response.status_code == 200
+    data = response.json()
+    modes = {mode["id"]: mode for mode in data["supported_analysis_modes"]}
+    analyzers = {entry["analyzer_id"]: entry for entry in data["analyzers"]}
+    assert modes["quick_safe"]["executes_repository_code"] is False
+    assert modes["deep_local"]["supported_source_types"] == ["local_path"]
+    assert analyzers["pytest"]["executes_repository_code"] is True
+    assert ".[analysis]" in data["setup"]["install_command"]
+
+
 def test_audit_local_path_success():
     response = client.post(
         "/api/audits",
@@ -71,6 +83,8 @@ def test_audit_local_path_success():
     data = response.json()
     assert data["status"] == "ok"
     assert data["source_type"] == "local_path"
+    assert data["analysis_mode"] == "deep_local"
+    assert data["audit"]["analysis"]["mode"] == "deep_local"
     assert data["profile_id"] == "student_portfolio"
     assert "audit" in data
     assert "advisor" in data
@@ -112,6 +126,8 @@ def test_audit_github_url_success(monkeypatch, tmp_path: Path):
     data = response.json()
     assert data["status"] == "ok"
     assert data["source_type"] == "github_url"
+    assert data["analysis_mode"] == "quick_safe"
+    assert data["audit"]["analysis"]["mode"] == "quick_safe"
     assert data["source_value"] == "https://github.com/owner/repo"
     assert data["audit"]["source"]["value"] == "https://github.com/owner/repo"
     assert "audit" in data
@@ -121,6 +137,35 @@ def test_audit_github_url_success(monkeypatch, tmp_path: Path):
     assert data["audit"]["diagnosis"]["evidence_confidence"]["label"] in {"partial", "limited"}
     assert data["audit"]["diagnosis"]["evidence_confidence"]["skipped_optional_tools"] == ["coverage", "pytest"]
     assert "Skipped for remote GitHub audit safety." in data["audit"]["diagnosis"]["limitations"]
+
+
+def test_audit_github_url_rejects_deep_local():
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "github_url",
+            "source_value": "https://github.com/owner/repo",
+            "analysis_mode": "deep_local",
+        },
+    )
+    assert response.status_code == 400
+    assert "deep_local" in response.json()["detail"]
+
+
+def test_audit_local_quick_safe_skips_test_execution():
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "local_path",
+            "source_value": SAMPLE_GOOD_REPO,
+            "analysis_mode": "quick_safe",
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["analysis_mode"] == "quick_safe"
+    test_statuses = {entry["tool"]: entry["status"] for entry in data["audit"]["test_analysis"]}
+    assert test_statuses == {"pytest": "skipped_by_config", "coverage": "skipped_by_config"}
 
 
 def test_audit_github_url_with_git_suffix_success(monkeypatch, tmp_path: Path):

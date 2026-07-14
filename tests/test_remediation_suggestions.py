@@ -50,10 +50,18 @@ def test_bandit_finding_creates_security_suggestion():
     assert len(s) == 1
 
 
-def test_analyzer_error_creates_investigate():
+def test_optional_analyzer_error_creates_environment_suggestion():
     audit = {"static_analysis": [{"tool": "ruff", "status": "failed_to_run", "findings": [], "errors": ["boom"]}]}
     suggs = generate_suggestions(audit)
-    s = [x for x in suggs if x.get("title") == "Investigate analyzer error"]
+    s = [x for x in suggs if x.get("code") == "ANALYZER-ENVIRONMENT-ERROR"]
+    assert len(s) == 1
+    assert "not automatically a repository defect" in s[0]["action"]
+
+
+def test_core_analyzer_error_creates_investigate():
+    audit = {"repository_analysis": [{"tool": "readme", "status": "failed_to_run", "findings": [], "errors": ["boom"]}]}
+    suggs = generate_suggestions(audit)
+    s = [x for x in suggs if x.get("code") == "ANALYZER-ERROR"]
     assert len(s) == 1
 
 

@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
 from ..input.resolver import resolve_local_path
 from .models import ToolFinding, ToolResult
+
+
+RADON_FINDING_RANKS = {"C", "D", "E", "F"}
 
 
 def parse_radon_cc_json(raw_output: str) -> ToolResult:
@@ -82,25 +86,30 @@ def parse_radon_cc_json(raw_output: str) -> ToolResult:
             if isinstance(col_offset, int) and col_offset >= 0:
                 column = col_offset + 1
 
-            message = f"{typ} {name} has complexity {comp} (rank {rank})"
-
-            finding = ToolFinding(
-                tool=tool,
-                message=message,
-                file_path=file_path,
-                line=line,
-                column=column,
-                severity=rank,
-                code="RADON-CC",
-            )
-            findings.append(finding)
+            if str(rank).upper() in RADON_FINDING_RANKS:
+                message = f"{typ} {name} has complexity {comp} (rank {rank})"
+                finding = ToolFinding(
+                    tool=tool,
+                    message=message,
+                    file_path=file_path,
+                    line=line,
+                    column=column,
+                    severity=rank,
+                    code="RADON-CC",
+                )
+                findings.append(finding)
 
     average = sum_complexity / total if total > 0 else 0
 
     return ToolResult(
         tool=tool,
         status="completed",
-        summary={"block_count": total, "max_complexity": max_complexity, "average_complexity": average},
+        summary={
+            "block_count": total,
+            "finding_count": len(findings),
+            "max_complexity": max_complexity,
+            "average_complexity": average,
+        },
         findings=findings,
         raw_output=raw_output,
     )
@@ -113,7 +122,7 @@ def run_radon(path: str | Path) -> ToolResult:
     except Exception as exc:
         return ToolResult(tool=tool, status="failed_to_run", summary={}, findings=[], errors=[str(exc)])
 
-    cmd = ["python", "-m", "radon", "cc", str(resolved), "-j"]
+    cmd = [sys.executable, "-m", "radon", "cc", str(resolved), "-j"]
 
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=30)

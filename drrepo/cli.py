@@ -24,6 +24,7 @@ from drrepo.input.workspace import (
     cleanup_workspace,
     clone_public_github_repo,
 )
+from drrepo.analyzers.registry import validate_analysis_mode
 
 
 app = typer.Typer(help="DrRepo - repository audit tool (minimal)")
@@ -34,6 +35,26 @@ def main() -> None:
     """DrRepo command line interface."""
 
 
+def _build_audit_cli(repo_path: str | Path, *, source_type: str, analysis_mode: str):
+    execute_tests = source_type == "local_path" and analysis_mode == "deep_local"
+    try:
+        return build_audit(
+            repo_path,
+            source_type=source_type,
+            analysis_mode=analysis_mode,
+            execute_tests=execute_tests,
+        )
+    except TypeError as exc:
+        if "unexpected keyword" not in str(exc):
+            raise
+        try:
+            return build_audit(repo_path, execute_tests=execute_tests)
+        except TypeError as exc2:
+            if "unexpected keyword" not in str(exc2):
+                raise
+            return build_audit(repo_path)
+
+
 @app.command()
 def audit(
     path: str = typer.Argument(..., help="Path to local repository or GitHub repo URL"),
@@ -41,6 +62,7 @@ def audit(
     output: Path | None = typer.Option(None, "--output", help="Optional output file path to write report to"),
     profile: str | None = typer.Option(None, "--profile", help="Optional advisor profile to include deterministic advisor guidance"),
     ai: bool = typer.Option(False, "--ai", help="Use the AI advisor router when a profile is selected"),
+    analysis_mode: str | None = typer.Option(None, "--analysis-mode", help="Analysis mode: quick_safe or deep_local"),
 ) -> None:
     """Run a lightweight audit against a local path or a public GitHub repository URL."""
     workspace = None
@@ -54,6 +76,10 @@ def audit(
 
     try:
         if is_public_github_repo_url(path):
+            try:
+                mode = validate_analysis_mode("github_url", analysis_mode)
+            except ValueError as exc:
+                raise typer.BadParameter(str(exc)) from exc
             # GitHub URL flow
             try:
                 workspace = create_temp_workspace()
@@ -62,13 +88,17 @@ def audit(
                 # Ensure cleanup happens in finally
                 raise typer.BadParameter(str(exc)) from exc
 
-            audit_result = build_audit(repo_path, execute_tests=False)
+            audit_result = _build_audit_cli(repo_path, source_type="github_url", analysis_mode=mode)
             # annotate source for URL audits
             audit_result["source"] = {"type": "github_url", "value": path}
         else:
+            try:
+                mode = validate_analysis_mode("local_path", analysis_mode)
+            except ValueError as exc:
+                raise typer.BadParameter(str(exc)) from exc
             # Local path flow
             try:
-                audit_result = build_audit(Path(path))
+                audit_result = _build_audit_cli(Path(path), source_type="local_path", analysis_mode=mode)
             except FileNotFoundError as exc:
                 raise typer.BadParameter(str(exc)) from exc
             except NotADirectoryError as exc:

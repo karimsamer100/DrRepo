@@ -13,11 +13,13 @@ from drrepo.advisor.profiles import list_profiles
 from drrepo.api.schemas import (
     AuditRequest,
     AuditResponse,
+    CapabilitiesResponse,
     HealthCheckResponse,
     ProfileInfo,
     ProfilesResponse,
 )
 from drrepo.api.service import run_audit_service
+from drrepo.analyzers.registry import capability_payload
 
 # Ensure common static assets are served with correct MIME types even on
 # systems where the registry / mime.types file is incomplete.
@@ -77,6 +79,11 @@ async def profiles():
     )
 
 
+@app.get("/api/capabilities", response_model=CapabilitiesResponse)
+async def capabilities():
+    return CapabilitiesResponse(**capability_payload())
+
+
 @app.post("/api/audits", response_model=AuditResponse)
 async def audits(request: AuditRequest):
     try:
@@ -86,6 +93,7 @@ async def audits(request: AuditRequest):
             profile_id=request.profile_id,
             ai=request.ai,
             include_markdown=request.include_markdown,
+            analysis_mode=request.analysis_mode,
         )
         return AuditResponse(**result)
     except ValueError as exc:

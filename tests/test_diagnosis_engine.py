@@ -76,11 +76,18 @@ def test_structure_incomplete_flag():
     assert "STRUCTURE_INCOMPLETE" in d["hard_flags"]
 
 
-def test_analyzer_errors_flag_and_not_available_limitation():
-    audit = {"static_analysis": [{"tool": "ruff", "status": "failed_to_run", "errors": ["boom"]}, {"tool": "bandit", "status": "not_available"}]}
+def test_optional_analyzer_errors_are_limitations_not_hard_flags():
+    audit = {"static_analysis": [{"tool": "radon", "status": "failed_to_run", "errors": ["boom"]}, {"tool": "bandit", "status": "not_available"}]}
+    d = build_diagnosis(audit)
+    assert "ANALYZER_ERRORS_PRESENT" not in d["hard_flags"]
+    assert "Optional analyzer radon could not complete; evidence confidence is reduced." in d["limitations"]
+    assert "Some optional analysis tools were not available." in d["limitations"]
+
+
+def test_core_analyzer_error_can_be_hard_flag():
+    audit = {"repository_analysis": [{"tool": "readme", "status": "failed_to_run", "errors": ["boom"]}]}
     d = build_diagnosis(audit)
     assert "ANALYZER_ERRORS_PRESENT" in d["hard_flags"]
-    assert "Some optional analysis tools were not available." in d["limitations"]
 
 
 def test_deduplication_order():
@@ -159,6 +166,24 @@ def test_evidence_confidence_is_limited_when_all_optional_tools_are_unavailable(
     assert d["repository_health"]["label"] == "healthy"
     assert confidence["available_optional_tools"] == []
     assert confidence["missing_optional_tools"] == ["ruff", "bandit", "radon", "coverage", "pytest"]
+
+
+def test_optional_failed_tool_reduces_confidence():
+    audit = {
+        "static_analysis": [
+            {"tool": "ruff", "status": "completed"},
+            {"tool": "bandit", "status": "completed"},
+            {"tool": "radon", "status": "failed_to_run"},
+        ],
+        "test_analysis": [
+            {"tool": "pytest", "status": "completed"},
+            {"tool": "coverage", "status": "completed"},
+        ],
+    }
+    d = build_diagnosis(audit)
+    assert d["evidence_confidence"]["label"] == "partial"
+    assert d["evidence_confidence"]["failed_optional_tools"] == ["radon"]
+    assert "ANALYZER_ERRORS_PRESENT" not in d["hard_flags"]
 
 
 def test_limited_evidence_does_not_downgrade_clean_healthy_verdict():

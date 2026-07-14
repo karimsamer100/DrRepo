@@ -1,5 +1,6 @@
 import json
 import subprocess
+import sys
 
 from drrepo.analyzers.radon_runner import parse_radon_cc_json, run_radon
 from drrepo.analyzers.models import ToolFinding
@@ -30,15 +31,31 @@ def test_parse_radon_one_block():
     assert res.summary.get("block_count") == 1
     assert res.summary.get("max_complexity") == 2
     assert res.summary.get("average_complexity") == 2
-    assert len(res.findings) == 1
+    assert res.summary.get("finding_count") == 0
+    assert len(res.findings) == 0
+
+
+def test_parse_radon_complex_block_creates_finding():
+    blk = {
+        "type": "function",
+        "rank": "C",
+        "name": "complex",
+        "lineno": 3,
+        "col_offset": 2,
+        "complexity": 12,
+    }
+    raw = json.dumps({"app.py": [blk]})
+    res = parse_radon_cc_json(raw)
+    assert res.status == "completed"
+    assert res.summary.get("finding_count") == 1
     f = res.findings[0]
     assert isinstance(f, ToolFinding)
     assert f.tool == "radon"
     assert f.code == "RADON-CC"
     assert f.file_path == "app.py"
-    assert f.line == 1
-    assert f.column == 1
-    assert f.severity == "A"
+    assert f.line == 3
+    assert f.column == 3
+    assert f.severity == "C"
 
 
 def test_parse_radon_multiple_blocks():
@@ -50,6 +67,7 @@ def test_parse_radon_multiple_blocks():
     assert res.summary.get("block_count") == 2
     assert res.summary.get("max_complexity") == 6
     assert res.summary.get("average_complexity") == 4
+    assert len(res.findings) == 1
 
 
 def test_parse_radon_average_float():
@@ -91,6 +109,9 @@ def test_run_radon_stdout_empty(monkeypatch, tmp_path):
         returncode = 0
 
     def fake_run(*args, **kwargs):
+        assert args[0][:3] == [sys.executable, "-m", "radon"]
+        assert kwargs["timeout"] == 30
+        assert kwargs["capture_output"] is True
         return P()
 
     monkeypatch.setattr(subprocess, "run", fake_run)
