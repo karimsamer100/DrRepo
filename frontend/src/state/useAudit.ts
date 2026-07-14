@@ -1,5 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
-import type { AnalysisMode, AuditRequest, AuditResponse, ProfileInfo, SourceType } from '../types/api'
+import type { AnalysisMode, AuditRequest, AuditResponse, IsolatedOptions, ProfileInfo, SourceType } from '../types/api'
 import { runAudit } from '../api/client'
 
 type AuditStatus = 'idle' | 'loading' | 'error' | 'done'
@@ -26,7 +26,8 @@ export function useAudit() {
       sourceValue: string,
       analysisMode: AnalysisMode,
       profileId: string,
-      includeMarkdown: boolean
+      includeMarkdown: boolean,
+      isolatedOptions?: IsolatedOptions | null
     ) => {
       const requestId = requestIdRef.current + 1
       requestIdRef.current = requestId
@@ -34,6 +35,7 @@ export function useAudit() {
         source_type: sourceType,
         source_value: sourceValue,
         analysis_mode: analysisMode,
+        isolated_options: analysisMode === 'deep_isolated' ? isolatedOptions || null : null,
         profile_id: profileId,
         ai: false,
         include_markdown: includeMarkdown,

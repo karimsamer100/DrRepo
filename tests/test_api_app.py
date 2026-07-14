@@ -70,10 +70,12 @@ def test_capabilities_endpoint():
     analyzers = {entry["analyzer_id"]: entry for entry in data["analyzers"]}
     assert modes["quick_safe"]["executes_repository_code"] is False
     assert modes["deep_local"]["supported_source_types"] == ["local_path"]
+    assert modes["deep_isolated"]["supported_source_types"] == ["local_path", "github_url"]
     assert analyzers["pytest"]["executes_repository_code"] is True
     assert analyzers["ci_config"]["executes_repository_code"] is False
     assert analyzers["container_config"]["section"] == "readiness"
     assert ".[analysis]" in data["setup"]["install_command"]
+    assert "supported" in data["docker_isolated_execution"]
 
 
 def test_audit_local_path_success():
@@ -157,6 +159,26 @@ def test_audit_github_url_rejects_deep_local():
     )
     assert response.status_code == 400
     assert "deep_local" in response.json()["detail"]
+
+
+def test_audit_deep_isolated_rejects_when_docker_unavailable(monkeypatch):
+    from drrepo.execution.docker_runner import DockerCapability
+
+    monkeypatch.setattr(
+        "drrepo.execution.check_docker_capability",
+        lambda: DockerCapability(False, False, None, "image", False, False, "Docker CLI is not installed."),
+    )
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "local_path",
+            "source_value": SAMPLE_GOOD_REPO,
+            "analysis_mode": "deep_isolated",
+        },
+    )
+
+    assert response.status_code == 400
+    assert "Docker CLI" in response.json()["detail"]
 
 
 def test_audit_local_quick_safe_skips_test_execution():

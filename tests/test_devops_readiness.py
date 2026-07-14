@@ -240,5 +240,51 @@ def test_static_readiness_does_not_import_repository_code(tmp_path: Path):
     assert readiness["applicability"] == "applicable"
 
 
+def test_isolated_test_evidence_strengthens_reproducibility(tmp_path: Path):
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='svc'\n", encoding="utf-8")
+    audit = _base_audit(tmp_path, profile_id="production_api")
+    audit["test_analysis"] = [
+        {
+            "tool": "pytest",
+            "status": "completed",
+            "execution_mode": "deep_isolated",
+            "summary": {"outcome": "passed"},
+            "findings": [],
+        },
+        {
+            "tool": "coverage",
+            "status": "completed",
+            "execution_mode": "deep_isolated",
+            "summary": {"coverage_percent": 92.0},
+            "findings": [],
+        },
+    ]
+
+    readiness = build_devops_readiness(audit, profile_id="production_api")
+    repro = _dimension(readiness, "reproducibility")
+
+    assert "Tests passed inside the isolated Docker runner." in repro["strengths"]
+    assert "Coverage was measured inside the isolated Docker runner." in repro["strengths"]
+
+
+def test_isolated_docker_unavailable_is_reproducibility_gap_not_blocker(tmp_path: Path):
+    audit = _base_audit(tmp_path, profile_id="production_api")
+    audit["test_analysis"] = [
+        {
+            "tool": "pytest",
+            "status": "not_available",
+            "execution_mode": "deep_isolated",
+            "summary": {"outcome": "docker_unavailable"},
+            "findings": [],
+        }
+    ]
+
+    readiness = build_devops_readiness(audit, profile_id="production_api")
+    repro = _dimension(readiness, "reproducibility")
+
+    assert "Docker isolated runner availability" in repro["unverified_checks"]
+    assert all(item["id"] != "Docker isolated runner availability" for item in readiness["blockers"])
+
+
 def _dimension(readiness: dict, dimension_id: str) -> dict:
     return next(item for item in readiness["dimensions"] if item["id"] == dimension_id)

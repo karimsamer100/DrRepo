@@ -10,14 +10,14 @@ from typing import Callable, Iterable, Literal
 from .models import ToolResult
 
 SourceType = Literal["local_path", "github_url"]
-AnalysisMode = Literal["quick_safe", "deep_local"]
+AnalysisMode = Literal["quick_safe", "deep_local", "deep_isolated"]
 
 SOURCE_TYPES: tuple[SourceType, ...] = ("local_path", "github_url")
-ANALYSIS_MODES: tuple[AnalysisMode, ...] = ("quick_safe", "deep_local")
+ANALYSIS_MODES: tuple[AnalysisMode, ...] = ("quick_safe", "deep_local", "deep_isolated")
 
 REMOTE_SAFETY_POLICY = (
     "Remote GitHub audits never execute target repository tests or coverage on the host. "
-    "Use quick_safe for github_url; deep_local is restricted to local_path."
+    "Use quick_safe for github_url by default; deep_isolated is explicit opt-in and runs supported verification inside Docker."
 )
 
 
@@ -99,8 +99,8 @@ ANALYZERS: tuple[AnalyzerDefinition, ...] = (
     _definition("ruff", "Ruff", "static_analysis", "code_quality", False, ANALYSIS_MODES, "ruff", 30, False),
     _definition("bandit", "Bandit", "static_analysis", "security", False, ANALYSIS_MODES, "bandit", 30, False),
     _definition("radon", "Radon", "static_analysis", "maintainability", False, ANALYSIS_MODES, "radon", 30, False),
-    _definition("pytest", "pytest", "test_analysis", "testing", True, ("deep_local",), "pytest", 60, False, ("local_path",)),
-    _definition("coverage", "coverage", "test_analysis", "testing", True, ("deep_local",), "coverage", 60, False, ("local_path",)),
+    _definition("pytest", "pytest", "test_analysis", "testing", True, ("deep_local", "deep_isolated"), "pytest", 60, False, SOURCE_TYPES),
+    _definition("coverage", "coverage", "test_analysis", "testing", True, ("deep_local", "deep_isolated"), "coverage", 60, False, SOURCE_TYPES),
     _definition("ci_config", "CI configuration", "readiness", "ci_cd", False, ANALYSIS_MODES, None, 10, True),
     _definition("container_config", "Container configuration", "readiness", "containerization", False, ANALYSIS_MODES, None, 10, True),
     _definition("deployment_config", "Deployment configuration", "readiness", "deployment", False, ANALYSIS_MODES, None, 10, True),
@@ -119,7 +119,7 @@ def default_analysis_mode(source_type: str) -> AnalysisMode:
 
 
 def validate_analysis_mode(source_type: str, analysis_mode: str | None) -> AnalysisMode:
-    mode = analysis_mode or default_analysis_mode(source_type)
+    mode = (analysis_mode.replace("-", "_") if isinstance(analysis_mode, str) else analysis_mode) or default_analysis_mode(source_type)
     if mode not in ANALYSIS_MODES:
         raise ValueError(f"Unsupported analysis_mode: {mode}")
     if source_type not in SOURCE_TYPES:
@@ -203,6 +203,8 @@ def apply_outcome_metadata(result: ToolResult) -> ToolResult:
 
 
 def should_run(definition: AnalyzerDefinition, source_type: SourceType, analysis_mode: AnalysisMode) -> tuple[bool, str | None]:
+    if definition.executes_repository_code and source_type == "github_url" and analysis_mode == "quick_safe":
+        return False, "Skipped for remote GitHub audit safety."
     if source_type not in definition.supported_source_types:
         if definition.executes_repository_code and source_type == "github_url":
             return False, "Skipped for remote GitHub audit safety."
@@ -250,6 +252,9 @@ def timed_run(
 
 
 def capability_payload() -> dict[str, object]:
+    from drrepo.execution import check_docker_capability
+
+    docker_capability = check_docker_capability()
     return {
         "supported_analysis_modes": [
             {
@@ -266,10 +271,17 @@ def capability_payload() -> dict[str, object]:
                 "executes_repository_code": True,
                 "supported_source_types": ["local_path"],
             },
+            {
+                "id": "deep_isolated",
+                "display_name": "Deep Isolated",
+                "description": "Runs supported test and coverage verification inside a disposable DrRepo-controlled Docker container. Explicit opt-in only.",
+                "executes_repository_code": True,
+                "supported_source_types": ["local_path", "github_url"],
+            },
         ],
         "supported_source_types": list(SOURCE_TYPES),
         "analyzers": [capability.to_dict() for capability in list_capabilities()],
-        "docker_isolated_execution": {"supported": False, "reason": "Not implemented in this pass."},
+        "docker_isolated_execution": docker_capability.to_dict(),
         "remote_execution_safety_policy": REMOTE_SAFETY_POLICY,
         "setup": {
             "analysis_extra": "analysis",
@@ -280,4 +292,4 @@ def capability_payload() -> dict[str, object]:
 
 def mode_allows_test_execution(source_type: str, analysis_mode: str) -> bool:
     mode = validate_analysis_mode(source_type, analysis_mode)
-    return source_type == "local_path" and mode == "deep_local"
+    return (source_type == "local_path" and mode == "deep_local") or mode == "deep_isolated"

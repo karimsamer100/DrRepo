@@ -15,6 +15,8 @@ from .registry import (
     skipped_result,
     timed_run,
 )
+from drrepo.execution import IsolatedExecutionRequest, isolated_result_to_tool_results, run_isolated_checks
+from drrepo.execution.models import options_from_dict
 
 
 REMOTE_TEST_SKIP_REASON = "Skipped for remote GitHub audit safety."
@@ -26,6 +28,7 @@ def run_test_analyzers(
     execute_tests: bool | None = None,
     source_type: SourceType = "local_path",
     analysis_mode: AnalysisMode = "deep_local",
+    isolated_options: dict | None = None,
 ) -> List[ToolResult]:
     # Validate path; allow resolver errors to propagate so caller can handle them
     resolved = resolve_local_path(path)
@@ -34,6 +37,20 @@ def run_test_analyzers(
         analysis_mode = "deep_local" if execute_tests else "quick_safe"
         if not execute_tests:
             source_type = "github_url"
+
+    if analysis_mode == "deep_isolated":
+        options = options_from_dict(isolated_options)
+        isolated = run_isolated_checks(IsolatedExecutionRequest(
+            repository_path=resolved,
+            source_type=source_type,
+            python_version=options.python_version,
+            install_dependencies=options.install_dependencies,
+            allow_install_network=options.allow_install_network,
+            requested_checks=("syntax", "pytest", "coverage"),
+            total_timeout_seconds=options.total_timeout_seconds,
+            per_command_timeout_seconds=options.per_command_timeout_seconds,
+        ))
+        return isolated_result_to_tool_results(isolated)
 
     results: List[ToolResult] = []
 

@@ -94,6 +94,7 @@ async def audits(request: AuditRequest):
             ai=request.ai,
             include_markdown=request.include_markdown,
             analysis_mode=request.analysis_mode,
+            isolated_options=request.isolated_options.model_dump() if request.isolated_options else None,
         )
         return AuditResponse(**result)
     except ValueError as exc:

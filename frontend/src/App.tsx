@@ -114,7 +114,8 @@ export default function App() {
       request.source_value,
       request.analysis_mode || (request.source_type === 'github_url' ? 'quick_safe' : 'deep_local'),
       request.profile_id,
-      request.include_markdown
+      request.include_markdown,
+      request.isolated_options || null
     )
   }
 

@@ -32,9 +32,9 @@ def _run_with_mode(fn, root: str | Path, *, source_type: str, analysis_mode: str
         return fn(root)
 
 
-def _run_tests_with_mode(fn, root: str | Path, *, source_type: str, analysis_mode: str, execute_tests: bool | None):
+def _run_tests_with_mode(fn, root: str | Path, *, source_type: str, analysis_mode: str, execute_tests: bool | None, isolated_options: dict[str, Any] | None):
     try:
-        return fn(root, source_type=source_type, analysis_mode=analysis_mode)
+        return fn(root, source_type=source_type, analysis_mode=analysis_mode, isolated_options=isolated_options)
     except TypeError as exc:
         if "unexpected keyword" not in str(exc):
             raise
@@ -50,6 +50,7 @@ def build_audit(
     source_type: str = "local_path",
     analysis_mode: str | None = None,
     profile_id: str = "student_portfolio",
+    isolated_options: dict[str, Any] | None = None,
 ) -> Dict[str, Any]:
     """Build the full audit dictionary for the given path.
 
@@ -79,6 +80,7 @@ def build_audit(
         source_type=source_type,
         analysis_mode=mode,
         execute_tests=execute_tests,
+        isolated_options=isolated_options,
     )
     repo_results = _run_with_mode(run_repository_analyzers, root, source_type=source_type, analysis_mode=mode)
 
@@ -90,7 +92,8 @@ def build_audit(
     scanned["analysis"] = {
         "mode": mode,
         "source_type": source_type,
-        "executes_repository_code": mode == "deep_local",
+        "executes_repository_code": mode in {"deep_local", "deep_isolated"},
+        "isolated_options": isolated_options if mode == "deep_isolated" else None,
     }
     scanned["dependency_environment"] = detect_dependency_environment(root)
     scanned["scoring"] = scoring

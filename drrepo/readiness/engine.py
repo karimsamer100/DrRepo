@@ -106,6 +106,10 @@ class DevOpsReadinessBuilder:
     def _is_ml(self) -> bool:
         return bool(self.architecture.get("ml_present")) or self.profile_id == "ai_ml_project" or any("ML" in item or "RAG" in item for item in self._project_types())
 
+    def _test_result(self, tool: str) -> dict[str, Any] | None:
+        results = self.audit.get("test_analysis") if isinstance(self.audit.get("test_analysis"), list) else []
+        return next((item for item in results if isinstance(item, dict) and item.get("tool") == tool), None)
+
     def _rel(self, path: Path) -> str:
         try:
             return str(path.relative_to(self.root)).replace("\\", "/")
@@ -485,6 +489,27 @@ class DevOpsReadinessBuilder:
             evidence.append(self._evidence("project understanding", "test command inferred", ", ".join(self.runnability.get("test_commands") or [])))
         else:
             unverified.append("test command")
+        pytest_result = self._test_result("pytest")
+        coverage_result = self._test_result("coverage")
+        if pytest_result and pytest_result.get("execution_mode") == "deep_isolated":
+            summary = pytest_result.get("summary") if isinstance(pytest_result.get("summary"), dict) else {}
+            outcome = str(summary.get("outcome", "unknown"))
+            if pytest_result.get("status") == "completed" and outcome == "passed":
+                strengths.append("Tests passed inside the isolated Docker runner.")
+                evidence.append(self._evidence("isolated pytest", "tests verified in Docker", outcome))
+            elif outcome == "setup_failed":
+                unverified.append("isolated dependency setup")
+            elif outcome == "docker_unavailable":
+                unverified.append("Docker isolated runner availability")
+            else:
+                evidence.append(self._evidence("isolated pytest", "isolated test evidence", outcome))
+        if coverage_result and coverage_result.get("execution_mode") == "deep_isolated":
+            summary = coverage_result.get("summary") if isinstance(coverage_result.get("summary"), dict) else {}
+            if coverage_result.get("status") == "completed":
+                strengths.append("Coverage was measured inside the isolated Docker runner.")
+                evidence.append(self._evidence("isolated coverage", "coverage verified in Docker", str(summary.get("coverage_percent"))))
+            elif summary.get("outcome") in {"setup_failed", "docker_unavailable", "no_data"}:
+                unverified.append(f"isolated coverage {summary.get('outcome')}")
         return self._dimension("reproducibility", "Reproducibility", "applicable", evidence, strengths, findings, blockers, unverified, "Dependency and command metadata were inspected for reproducibility.")
 
     def _has_health_endpoint(self) -> bool:

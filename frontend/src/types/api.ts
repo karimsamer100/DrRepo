@@ -316,12 +316,21 @@ export interface AdvisorReport {
 }
 
 export type SourceType = 'local_path' | 'github_url'
-export type AnalysisMode = 'quick_safe' | 'deep_local'
+export type AnalysisMode = 'quick_safe' | 'deep_local' | 'deep_isolated'
+
+export interface IsolatedOptions {
+  install_dependencies: boolean
+  allow_install_network: boolean
+  total_timeout_seconds: number
+  per_command_timeout_seconds?: number
+  python_version: '3.11' | '3.12'
+}
 
 export interface AuditRequest {
   source_type: SourceType
   source_value: string
   analysis_mode?: AnalysisMode | null
+  isolated_options?: IsolatedOptions | null
   profile_id: string
   ai: false
   include_markdown: boolean
@@ -379,6 +388,13 @@ export interface CapabilitiesResponse {
   docker_isolated_execution: {
     supported: boolean
     reason?: string
+    docker_cli_available?: boolean
+    engine_reachable?: boolean
+    docker_version?: string | null
+    runner_image?: string
+    runner_image_available?: boolean
+    setup_command?: string
+    security_note?: string
   }
   remote_execution_safety_policy: string
   setup: {

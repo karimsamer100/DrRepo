@@ -22,14 +22,22 @@ def test_deep_local_is_rejected_for_github_url():
         validate_analysis_mode("github_url", "deep_local")
 
 
+def test_deep_isolated_is_allowed_for_local_and_github():
+    assert validate_analysis_mode("local_path", "deep_isolated") == "deep_isolated"
+    assert validate_analysis_mode("github_url", "deep-isolated") == "deep_isolated"
+
+
 def test_capability_payload_includes_registry_and_safety_policy():
     payload = capability_payload()
+    modes = {entry["id"]: entry for entry in payload["supported_analysis_modes"]}
     analyzers = {entry["analyzer_id"]: entry for entry in payload["analyzers"]}
 
     assert {"readme", "structure", "ruff", "bandit", "radon", "pytest", "coverage"} <= set(analyzers)
     assert analyzers["pytest"]["executes_repository_code"] is True
     assert analyzers["ruff"]["executes_repository_code"] is False
-    assert payload["docker_isolated_execution"]["supported"] is False
+    assert "deep_isolated" in modes
+    assert modes["deep_isolated"]["supported_source_types"] == ["local_path", "github_url"]
+    assert "supported" in payload["docker_isolated_execution"]
     assert "Remote GitHub audits never execute" in payload["remote_execution_safety_policy"]
     assert ".[analysis]" in payload["setup"]["install_command"]
 

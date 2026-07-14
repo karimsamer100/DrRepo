@@ -70,7 +70,7 @@ function isRecentAudit(value: unknown): value is RecentAudit {
   return (
     typeof candidate.sourceLabel === 'string' &&
     (candidate.sourceType === 'local_path' || candidate.sourceType === 'github_url') &&
-    (candidate.analysisMode === undefined || candidate.analysisMode === null || candidate.analysisMode === 'quick_safe' || candidate.analysisMode === 'deep_local') &&
+    (candidate.analysisMode === undefined || candidate.analysisMode === null || candidate.analysisMode === 'quick_safe' || candidate.analysisMode === 'deep_local' || candidate.analysisMode === 'deep_isolated') &&
     typeof candidate.profile === 'string' &&
     typeof candidate.createdAt === 'string' &&
     !Number.isNaN(Date.parse(candidate.createdAt)) &&

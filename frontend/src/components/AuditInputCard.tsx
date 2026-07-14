@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent } from 'react'
-import type { AnalysisMode, CapabilitiesResponse, ProfileInfo, SourceType } from '../types/api'
+import type { AnalysisMode, CapabilitiesResponse, IsolatedOptions, ProfileInfo, SourceType } from '../types/api'
 import { listProfiles } from '../api/client'
 import type { RecentAudit } from '../lib/recentAudits'
 import { RecentAudits } from './RecentAudits'
@@ -11,7 +11,8 @@ interface AuditInputCardProps {
     sourceValue: string,
     analysisMode: AnalysisMode,
     profileId: string,
-    includeMarkdown: boolean
+    includeMarkdown: boolean,
+    isolatedOptions?: IsolatedOptions | null
   ) => void
   recentAudits?: RecentAudit[]
   onSelectRecent?: (item: RecentAudit) => void
@@ -50,6 +51,8 @@ export function AuditInputCard({
   const [sourceValue, setSourceValue] = useState('')
   const [profileId, setProfileId] = useState('student_portfolio')
   const [includeMarkdown, setIncludeMarkdown] = useState(false)
+  const [installDependencies, setInstallDependencies] = useState(false)
+  const [allowInstallNetwork, setAllowInstallNetwork] = useState(false)
   const [profilesError, setProfilesError] = useState<string | null>(null)
 
   useEffect(() => {
@@ -75,12 +78,28 @@ export function AuditInputCard({
   }, [])
 
   const apiUnreachable = !!profilesError
-  const canSubmit = sourceValue.trim().length > 0 && !disabled && !apiUnreachable
+  const dockerSupported = !!capabilities?.docker_isolated_execution?.supported
+  const canSubmit = sourceValue.trim().length > 0 && !disabled && !apiUnreachable && (analysisMode !== 'deep_isolated' || dockerSupported)
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (canSubmit) {
-      onSubmit(sourceType, sourceValue.trim(), analysisMode, profileId, includeMarkdown)
+      onSubmit(
+        sourceType,
+        sourceValue.trim(),
+        analysisMode,
+        profileId,
+        includeMarkdown,
+        analysisMode === 'deep_isolated'
+          ? {
+              install_dependencies: installDependencies,
+              allow_install_network: installDependencies && allowInstallNetwork,
+              total_timeout_seconds: 300,
+              per_command_timeout_seconds: 120,
+              python_version: '3.12',
+            }
+          : null
+      )
     }
   }
 
@@ -105,7 +124,7 @@ export function AuditInputCard({
 
   const selectSourceType = (mode: SourceType) => {
     setSourceType(mode)
-    if (mode === 'github_url') setAnalysisMode('quick_safe')
+    if (mode === 'github_url' && analysisMode === 'deep_local') setAnalysisMode('quick_safe')
     setSourceValue('')
   }
 
@@ -182,7 +201,7 @@ export function AuditInputCard({
               <label id="analysis-mode-label" className="mb-2 block text-xs font-medium uppercase tracking-[0.16em] text-faint">
                 Analysis mode
               </label>
-              <div className="grid gap-2 sm:grid-cols-2" role="group" aria-labelledby="analysis-mode-label">
+              <div className="grid gap-2 sm:grid-cols-3" role="group" aria-labelledby="analysis-mode-label">
                 <button
                   type="button"
                   aria-pressed={analysisMode === 'quick_safe'}
@@ -210,6 +229,20 @@ export function AuditInputCard({
                   <span className="block text-sm font-semibold">Deep Local</span>
                   <span className="mt-1 block text-xs leading-5 text-faint">Runs pytest and coverage. Project code may execute locally.</span>
                 </button>
+                <button
+                  type="button"
+                  aria-pressed={analysisMode === 'deep_isolated'}
+                  disabled={!dockerSupported}
+                  onClick={() => setAnalysisMode('deep_isolated')}
+                  className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                    analysisMode === 'deep_isolated'
+                      ? 'border-warning/30 bg-warning/10 text-warning'
+                      : 'border-border bg-base text-muted hover:text-primary'
+                  }`}
+                >
+                  <span className="block text-sm font-semibold">Deep Isolated</span>
+                  <span className="mt-1 block text-xs leading-5 text-faint">Runs tests inside Docker. Explicit opt-in for local or GitHub.</span>
+                </button>
               </div>
               {analysisMode === 'deep_local' && (
                 <p className="mt-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning">
@@ -218,7 +251,41 @@ export function AuditInputCard({
               )}
               {sourceType === 'github_url' && (
                 <p className="mt-2 text-xs leading-5 text-faint">
-                  GitHub URL audits are locked to Quick Safe until isolated remote execution is implemented.
+                  GitHub URL audits default to Quick Safe. Deep Isolated is available only when the DrRepo Docker runner is prepared.
+                </p>
+              )}
+              {analysisMode === 'deep_isolated' && (
+                <div className="mt-2 space-y-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning">
+                  <p>
+                    Deep Isolated executes supported verification inside a disposable DrRepo-controlled Docker container. This is not a production SaaS sandbox.
+                  </p>
+                  <label className="flex items-start gap-2 text-muted">
+                    <input
+                      type="checkbox"
+                      checked={installDependencies}
+                      onChange={(event) => {
+                        setInstallDependencies(event.target.checked)
+                        if (!event.target.checked) setAllowInstallNetwork(false)
+                      }}
+                      className="mt-1 h-3.5 w-3.5 rounded border-border bg-surface-2 text-brand focus:ring-brand/50"
+                    />
+                    Install dependencies inside the container before tests.
+                  </label>
+                  <label className="flex items-start gap-2 text-muted">
+                    <input
+                      type="checkbox"
+                      checked={allowInstallNetwork}
+                      disabled={!installDependencies}
+                      onChange={(event) => setAllowInstallNetwork(event.target.checked)}
+                      className="mt-1 h-3.5 w-3.5 rounded border-border bg-surface-2 text-brand focus:ring-brand/50 disabled:opacity-50"
+                    />
+                    Allow network only during dependency installation.
+                  </label>
+                </div>
+              )}
+              {!dockerSupported && (
+                <p className="mt-2 text-xs leading-5 text-faint">
+                  Deep Isolated unavailable: {capabilities?.docker_isolated_execution?.reason || 'Docker capability has not been confirmed.'}
                 </p>
               )}
             </div>
@@ -363,6 +430,11 @@ export function AuditInputCard({
                 {capabilities.setup.install_command && (
                   <code className="mt-3 block break-all rounded-lg border border-border bg-base p-2 font-mono text-[10px] text-faint">
                     {capabilities.setup.install_command}
+                  </code>
+                )}
+                {capabilities.docker_isolated_execution.setup_command && (
+                  <code className="mt-3 block break-all rounded-lg border border-border bg-base p-2 font-mono text-[10px] text-faint">
+                    {capabilities.docker_isolated_execution.setup_command}
                   </code>
                 )}
               </>

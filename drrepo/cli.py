@@ -25,6 +25,8 @@ from drrepo.input.workspace import (
     clone_public_github_repo,
 )
 from drrepo.analyzers.registry import validate_analysis_mode
+from drrepo.execution import check_docker_capability
+from drrepo.execution.models import options_from_dict
 
 
 app = typer.Typer(help="DrRepo - repository audit tool (minimal)")
@@ -35,7 +37,7 @@ def main() -> None:
     """DrRepo command line interface."""
 
 
-def _build_audit_cli(repo_path: str | Path, *, source_type: str, analysis_mode: str, profile_id: str):
+def _build_audit_cli(repo_path: str | Path, *, source_type: str, analysis_mode: str, profile_id: str, isolated_options: dict | None = None):
     execute_tests = source_type == "local_path" and analysis_mode == "deep_local"
     try:
         return build_audit(
@@ -44,6 +46,7 @@ def _build_audit_cli(repo_path: str | Path, *, source_type: str, analysis_mode: 
             analysis_mode=analysis_mode,
             execute_tests=execute_tests,
             profile_id=profile_id,
+            isolated_options=isolated_options,
         )
     except TypeError as exc:
         if "unexpected keyword" not in str(exc):
@@ -56,6 +59,36 @@ def _build_audit_cli(repo_path: str | Path, *, source_type: str, analysis_mode: 
             return build_audit(repo_path)
 
 
+def _validated_cli_isolated_options(
+    mode: str,
+    install_dependencies: bool,
+    allow_install_network: bool,
+    isolated_timeout: int,
+    isolated_python: str,
+) -> dict | None:
+    if mode != "deep_isolated":
+        if install_dependencies or allow_install_network:
+            raise ValueError("isolated dependency flags require --analysis-mode deep_isolated.")
+        return None
+    raw = {
+        "install_dependencies": install_dependencies,
+        "allow_install_network": allow_install_network,
+        "total_timeout_seconds": isolated_timeout,
+        "per_command_timeout_seconds": min(120, isolated_timeout),
+        "python_version": isolated_python,
+    }
+    options = options_from_dict(raw)
+    capability = check_docker_capability()
+    if not capability.deep_isolated_supported:
+        raise ValueError(capability.unavailable_reason or "Docker isolated execution is unavailable.")
+    typer.echo("Deep Isolated will execute supported checks inside a disposable Docker container.", err=True)
+    if options.install_dependencies:
+        typer.echo("Dependency installation may execute package build hooks inside the container.", err=True)
+    if options.allow_install_network:
+        typer.echo("Network is allowed only during the dependency installation phase.", err=True)
+    return raw
+
+
 @app.command()
 def audit(
     path: str = typer.Argument(..., help="Path to local repository or GitHub repo URL"),
@@ -63,7 +96,11 @@ def audit(
     output: Path | None = typer.Option(None, "--output", help="Optional output file path to write report to"),
     profile: str | None = typer.Option(None, "--profile", help="Optional advisor profile to include deterministic advisor guidance"),
     ai: bool = typer.Option(False, "--ai", help="Use the AI advisor router when a profile is selected"),
-    analysis_mode: str | None = typer.Option(None, "--analysis-mode", help="Analysis mode: quick_safe or deep_local"),
+    analysis_mode: str | None = typer.Option(None, "--analysis-mode", help="Analysis mode: quick_safe, deep_local, or deep_isolated"),
+    install_dependencies: bool = typer.Option(False, "--install-dependencies", help="For deep_isolated only: install dependencies inside the container before checks."),
+    allow_install_network: bool = typer.Option(False, "--allow-install-network", help="For deep_isolated only: temporarily allow network during dependency installation."),
+    isolated_timeout: int = typer.Option(300, "--isolated-timeout", help="For deep_isolated only: total timeout in seconds."),
+    isolated_python: str = typer.Option("3.12", "--isolated-python", help="For deep_isolated only: Python version allowlist value."),
 ) -> None:
     """Run a lightweight audit against a local path or a public GitHub repository URL."""
     workspace = None
@@ -88,6 +125,7 @@ def audit(
         if is_public_github_repo_url(path):
             try:
                 mode = validate_analysis_mode("github_url", analysis_mode)
+                isolated_options = _validated_cli_isolated_options(mode, install_dependencies, allow_install_network, isolated_timeout, isolated_python)
             except ValueError as exc:
                 raise typer.BadParameter(str(exc)) from exc
             # GitHub URL flow
@@ -98,17 +136,18 @@ def audit(
                 # Ensure cleanup happens in finally
                 raise typer.BadParameter(str(exc)) from exc
 
-            audit_result = _build_audit_cli(repo_path, source_type="github_url", analysis_mode=mode, profile_id=profile or "student_portfolio")
+            audit_result = _build_audit_cli(repo_path, source_type="github_url", analysis_mode=mode, profile_id=profile or "student_portfolio", isolated_options=isolated_options)
             # annotate source for URL audits
             audit_result["source"] = {"type": "github_url", "value": path}
         else:
             try:
                 mode = validate_analysis_mode("local_path", analysis_mode)
+                isolated_options = _validated_cli_isolated_options(mode, install_dependencies, allow_install_network, isolated_timeout, isolated_python)
             except ValueError as exc:
                 raise typer.BadParameter(str(exc)) from exc
             # Local path flow
             try:
-                audit_result = _build_audit_cli(Path(path), source_type="local_path", analysis_mode=mode, profile_id=profile or "student_portfolio")
+                audit_result = _build_audit_cli(Path(path), source_type="local_path", analysis_mode=mode, profile_id=profile or "student_portfolio", isolated_options=isolated_options)
             except FileNotFoundError as exc:
                 raise typer.BadParameter(str(exc)) from exc
             except NotADirectoryError as exc:

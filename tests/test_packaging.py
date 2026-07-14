@@ -52,3 +52,9 @@ def test_tools_not_runtime_dependencies_unless_intended():
     dev_tools = ["ruff", "bandit", "radon", "coverage"]
     for tool in dev_tools:
         assert not any(d.startswith(tool) for d in deps)
+
+
+def test_runner_image_assets_are_packaged():
+    data = _load_pyproject()
+    package_data = data.get("tool", {}).get("setuptools", {}).get("package-data", {})
+    assert package_data.get("drrepo.execution.runner_image") == ["Dockerfile", "runner.py"]

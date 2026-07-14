@@ -31,3 +31,18 @@ def test_frontend_types_include_devops_readiness_contracts():
     assert "export interface DevOpsReadiness" in source
     assert "devops_readiness?: DevOpsReadiness" in source
     assert "DevOps & release readiness" in panel
+
+
+def test_frontend_contracts_include_deep_isolated_controls():
+    types = Path("frontend/src/types/api.ts").read_text(encoding="utf-8")
+    card = Path("frontend/src/components/AuditInputCard.tsx").read_text(encoding="utf-8")
+    hook = Path("frontend/src/state/useAudit.ts").read_text(encoding="utf-8")
+
+    assert "'deep_isolated'" in types
+    assert "export interface IsolatedOptions" in types
+    assert "isolated_options?: IsolatedOptions | null" in types
+    assert "Deep Isolated" in card
+    assert "dockerSupported" in card
+    assert "install_dependencies" in card
+    assert "allow_install_network" in card
+    assert "isolated_options" in hook

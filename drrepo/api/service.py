@@ -12,6 +12,7 @@ def run_audit_service(
     ai: bool = False,
     include_markdown: bool = False,
     analysis_mode: str | None = None,
+    isolated_options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if ai:
         raise ValueError("AI advisor mode is not supported via the API yet.")
@@ -20,6 +21,14 @@ def run_audit_service(
 
     validate_profile_id(profile_id)
     mode = validate_analysis_mode(source_type, analysis_mode)
+    if mode == "deep_isolated":
+        from drrepo.execution import check_docker_capability
+        from drrepo.execution.models import options_from_dict
+
+        options_from_dict(isolated_options)
+        docker_capability = check_docker_capability()
+        if not docker_capability.deep_isolated_supported:
+            raise ValueError(docker_capability.unavailable_reason or "Docker isolated execution is unavailable.")
 
     workspace: Path | None = None
     audit_path: str | Path
@@ -51,7 +60,7 @@ def run_audit_service(
     from drrepo.audit import build_audit
 
     try:
-        audit = build_audit(audit_path, source_type=source_type, analysis_mode=mode, profile_id=profile_id)
+        audit = build_audit(audit_path, source_type=source_type, analysis_mode=mode, profile_id=profile_id, isolated_options=isolated_options)
     finally:
         if workspace is not None:
             from drrepo.input.workspace import cleanup_workspace
