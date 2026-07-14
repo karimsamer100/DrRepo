@@ -16,6 +16,8 @@ class ProjectIdentity:
     primary_language: str
     project_type: str
     secondary_project_types: list[str]
+    architecture_type: str | None
+    domain_specializations: list[str]
     frameworks: list[str]
     interfaces: list[str]
     package_layout: str

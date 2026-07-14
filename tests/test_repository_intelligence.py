@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 
+from drrepo.audit import build_audit
 from drrepo.environment import detect_dependency_environment
 from drrepo.intelligence import build_repository_intelligence
 from drrepo.reports.markdown_report import render_markdown_report
@@ -56,9 +57,29 @@ dependencies = ["fastapi", "uvicorn"]
 
     assert identity["project_type"] == "FastAPI API"
     assert "FastAPI" in identity["frameworks"]
+    assert "API" in identity["interfaces"]
     assert any(entry["kind"] == "api" and entry["path"] == "app.py" for entry in entry_points)
     assert "python -m pip install -e ." in runnability["install_commands"]
     assert "python -m pytest" in runnability["test_commands"]
+
+
+def test_mixed_fastapi_frontend_precedes_top_level_scripts(tmp_path):
+    (tmp_path / "pyproject.toml").write_text("[project]\nname='mixed-api'\ndependencies=['fastapi']\n", encoding="utf-8")
+    (tmp_path / "backend").mkdir()
+    (tmp_path / "frontend").mkdir()
+    (tmp_path / "backend" / "app.py").write_text("from fastapi import FastAPI\napp = FastAPI()\n", encoding="utf-8")
+    (tmp_path / "main.py").write_text("if __name__ == '__main__':\n    print('helper')\n", encoding="utf-8")
+    (tmp_path / "frontend" / "package.json").write_text(json.dumps({"scripts": {"build": "vite build"}}), encoding="utf-8")
+
+    result = build_repository_intelligence(_audit_for(tmp_path))
+    identity = result["project_understanding"]["project_identity"]
+
+    assert identity["project_type"] == "backend + frontend application"
+    assert identity["architecture_type"] == "backend + frontend application"
+    assert identity["package_layout"] == "backend/frontend layout"
+    assert "API" in identity["interfaces"]
+    assert "web frontend" in identity["interfaces"]
+    assert "script" in identity["interfaces"]
 
 
 def test_detects_mixed_backend_frontend_project(tmp_path):
@@ -75,6 +96,27 @@ def test_detects_mixed_backend_frontend_project(tmp_path):
     assert "Flask application" in identity["secondary_project_types"]
     assert architecture["backend_present"] is True
     assert architecture["frontend_present"] is True
+
+
+def test_notebook_presence_does_not_override_api_identity(tmp_path):
+    (tmp_path / "app.py").write_text("from fastapi import FastAPI\napp = FastAPI()\n", encoding="utf-8")
+    (tmp_path / "analysis.ipynb").write_text("{}", encoding="utf-8")
+
+    result = build_repository_intelligence(_audit_for(tmp_path))
+    identity = result["project_understanding"]["project_identity"]
+
+    assert identity["project_type"] == "FastAPI API"
+    assert identity["project_type"] != "data-science/notebook project"
+
+
+def test_weak_ml_rag_keywords_do_not_classify_repository(tmp_path):
+    (tmp_path / "main.py").write_text("OPENAI_TIMEOUT = 30\n# embedding is a config label only\n", encoding="utf-8")
+
+    result = build_repository_intelligence(_audit_for(tmp_path))
+    identity = result["project_understanding"]["project_identity"]
+
+    assert "RAG/LLM application" not in [identity["project_type"], *identity["secondary_project_types"]]
+    assert "ML training project" not in [identity["project_type"], *identity["secondary_project_types"]]
 
 
 def test_detects_cli_library_from_pyproject_scripts(tmp_path):
@@ -131,6 +173,17 @@ def test_executive_report_does_not_contradict_diagnosis(tmp_path):
     assert report["verdict"] == "needs_attention"
     assert report["evidence_confidence"] == "limited"
     assert "needs attention" in report["one_sentence_summary"]
+
+
+def test_executive_next_step_uses_high_value_release_blocker(tmp_path):
+    (tmp_path / "app.py").write_text("from fastapi import FastAPI\napp=FastAPI()\nDEBUG=True\n", encoding="utf-8")
+    (tmp_path / ".env").write_text("API_KEY=fake_test_token_1234567890abcdef\n", encoding="utf-8")
+
+    audit = build_audit(tmp_path, analysis_mode="quick_safe", profile_id="production_api")
+    report = audit["executive_report"]
+
+    assert report["biggest_gap"] == audit["recommendations_v2"][0]["title"]
+    assert "Remove" in report["next_best_step"] or "Add .github" in report["next_best_step"]
 
 
 def test_recommendations_group_readme_ruff_and_audit_environment(tmp_path):

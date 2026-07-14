@@ -56,11 +56,11 @@ def parse_radon_cc_json(raw_output: str) -> ToolResult:
         if not isinstance(blocks, list):
             error_message = blocks.get("error") if isinstance(blocks, dict) else None
             reason = str(error_message or "Radon file entry is not a block list")
-            parse_errors.append(f"{file_path}: {reason}")
+            parse_errors.append(reason)
             findings.append(
                 ToolFinding(
                     tool=tool,
-                    message=f"Radon could not parse {file_path}: {reason}",
+                    message=f"Radon could not parse this file: {reason}",
                     file_path=str(file_path),
                     severity="medium",
                     code="RADON-PARSE-ERROR",
@@ -108,6 +108,7 @@ def parse_radon_cc_json(raw_output: str) -> ToolResult:
     average = sum_complexity / total if total > 0 else 0
 
     status = "partial" if parse_errors else "completed"
+    partial_reason = f"{len(parse_errors)} file(s) could not be parsed by Radon; partial complexity output was returned." if parse_errors else None
     return ToolResult(
         tool=tool,
         status=status,
@@ -115,11 +116,12 @@ def parse_radon_cc_json(raw_output: str) -> ToolResult:
             "block_count": total,
             "finding_count": len(findings),
             "parse_error_count": len(parse_errors),
+            "partial_reason": partial_reason,
             "max_complexity": max_complexity,
             "average_complexity": average,
         },
         findings=findings,
-        errors=parse_errors,
+        errors=[partial_reason] if partial_reason else [],
         raw_output=raw_output,
     )
 

@@ -100,7 +100,9 @@ def test_parse_radon_file_not_list():
     res = parse_radon_cc_json(raw)
     assert res.status == "partial"
     assert res.summary["parse_error_count"] == 1
+    assert "partial complexity output" in res.summary["partial_reason"]
     assert res.findings[0].code == "RADON-PARSE-ERROR"
+    assert res.errors == [res.summary["partial_reason"]]
     assert res.errors and len(res.errors) > 0
 
 

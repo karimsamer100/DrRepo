@@ -49,7 +49,7 @@ def _limitation_reason(entry: Dict[str, Any]) -> str | None:
         return f"{tool}: analyzer failed to run ({reason})"
     if status == "partial":
         errors = entry.get("errors") or []
-        reason = str(errors[0]).strip() if isinstance(errors, list) and errors else "Analyzer produced partial evidence."
+        reason = summary.get("partial_reason") or (str(errors[0]).strip() if isinstance(errors, list) and errors else "Analyzer produced partial evidence.")
         return f"{tool}: partial evidence ({reason})"
     return None
 
@@ -91,6 +91,7 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
     runnability = _safe_get(understanding, "runnability", {}) or {}
     entry_points = _safe_get(understanding, "entry_points", []) or []
     recs_v2 = _safe_get(audit, "recommendations_v2", []) or []
+    devops = _safe_get(audit, "devops_readiness", {}) or {}
 
     if executive:
         lines.append("")
@@ -126,6 +127,48 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
         lines.append(f"- **Secondary types**: {', '.join(secondary) if secondary else 'None'}")
         lines.append(f"- **Package layout**: {_safe_get(identity, 'package_layout', 'unknown')}")
         lines.append(f"- **Confidence**: {_safe_get(identity, 'confidence', 'unknown')}")
+
+    if devops:
+        lines.append("")
+        lines.append("## DevOps & Release Readiness")
+        lines.append(f"- **Verdict**: {_safe_get(devops, 'verdict', 'unknown')}")
+        score = _safe_get(devops, "observed_score")
+        lines.append(f"- **Observed readiness score**: {score if score is not None else 'Not assessed'}")
+        lines.append(f"- **Evidence confidence**: {_safe_get(devops, 'evidence_confidence', 'unknown')}")
+        next_step = _safe_get(devops, "next_best_step")
+        if next_step:
+            lines.append(f"- **Next best step**: {next_step}")
+        strengths = _safe_get(devops, "strengths", []) or []
+        if strengths:
+            lines.append("- **Strengths**:")
+            for strength in strengths[:6]:
+                lines.append(f"  - {strength}")
+        blockers = _safe_get(devops, "blockers", []) or []
+        if blockers:
+            lines.append("")
+            lines.append("### Release Blockers")
+            for blocker in blockers[:8]:
+                if not isinstance(blocker, dict):
+                    continue
+                lines.append(f"- **{blocker.get('severity', 'unknown')}**: {blocker.get('title', 'Blocker')}")
+                fix = blocker.get("suggested_fix")
+                if fix:
+                    lines.append(f"  - Fix: {fix}")
+        dimensions = _safe_get(devops, "dimensions", []) or []
+        if isinstance(dimensions, list) and dimensions:
+            lines.append("")
+            lines.append("### Readiness dimensions")
+            lines.append("")
+            lines.append("| Dimension | Applicability | Status | Score | Confidence |")
+            lines.append("|---|---|---|---:|---|")
+            for dim in dimensions:
+                if not isinstance(dim, dict):
+                    continue
+                dim_score = dim.get("score")
+                lines.append(
+                    f"| {dim.get('title', dim.get('id', 'unknown'))} | {dim.get('applicability', 'unknown')} | "
+                    f"{dim.get('status', 'unknown')} | {dim_score if dim_score is not None else 'N/A'} | {dim.get('confidence', 'unknown')} |"
+                )
 
     if runnability:
         lines.append("")

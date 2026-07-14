@@ -101,6 +101,8 @@ export interface ProjectIdentity {
   primary_language?: string
   project_type?: string
   secondary_project_types?: string[]
+  architecture_type?: string | null
+  domain_specializations?: string[]
   frameworks?: string[]
   interfaces?: string[]
   package_layout?: string
@@ -181,6 +183,55 @@ export interface StructuredRecommendation {
   success_check?: string
 }
 
+export interface ReadinessEvidence {
+  path: string
+  reason: string
+  detail?: string | null
+}
+
+export interface ReadinessFinding {
+  id?: string
+  title?: string
+  description?: string
+  category?: string
+  severity?: string
+  confidence?: string
+  evidence?: ReadinessEvidence[]
+  affected_files?: string[]
+  why_it_matters?: string
+  suggested_fix?: string
+  success_check?: string
+}
+
+export interface DimensionAssessment {
+  id?: string
+  title?: string
+  applicability?: string
+  score?: number | null
+  status?: string
+  confidence?: string
+  summary?: string
+  strengths?: string[]
+  findings?: ReadinessFinding[]
+  blockers?: ReadinessFinding[]
+  evidence?: ReadinessEvidence[]
+  unverified_checks?: string[]
+}
+
+export interface DevOpsReadiness {
+  applicability?: string
+  verdict?: string
+  observed_score?: number | null
+  evidence_confidence?: string
+  dimensions?: DimensionAssessment[]
+  strengths?: string[]
+  blockers?: ReadinessFinding[]
+  risks?: ReadinessFinding[]
+  evidence_gaps?: string[]
+  next_best_step?: string
+  recommendations?: StructuredRecommendation[]
+}
+
 export interface AuditMetadata {
   total_files?: number
   total_directories?: number
@@ -225,6 +276,7 @@ export interface Audit {
   recommendations_v2?: StructuredRecommendation[]
   project_understanding?: ProjectUnderstanding
   executive_report?: ExecutiveReport
+  devops_readiness?: DevOpsReadiness
   remediation_summary?: {
     total?: number
     by_severity?: Record<string, number>

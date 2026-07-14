@@ -101,6 +101,12 @@ ANALYZERS: tuple[AnalyzerDefinition, ...] = (
     _definition("radon", "Radon", "static_analysis", "maintainability", False, ANALYSIS_MODES, "radon", 30, False),
     _definition("pytest", "pytest", "test_analysis", "testing", True, ("deep_local",), "pytest", 60, False, ("local_path",)),
     _definition("coverage", "coverage", "test_analysis", "testing", True, ("deep_local",), "coverage", 60, False, ("local_path",)),
+    _definition("ci_config", "CI configuration", "readiness", "ci_cd", False, ANALYSIS_MODES, None, 10, True),
+    _definition("container_config", "Container configuration", "readiness", "containerization", False, ANALYSIS_MODES, None, 10, True),
+    _definition("deployment_config", "Deployment configuration", "readiness", "deployment", False, ANALYSIS_MODES, None, 10, True),
+    _definition("configuration_security", "Configuration and secrets", "readiness", "configuration_security", False, ANALYSIS_MODES, None, 10, True),
+    _definition("observability", "Observability signals", "readiness", "observability", False, ANALYSIS_MODES, None, 10, True),
+    _definition("release_hygiene", "Release hygiene", "readiness", "release_hygiene", False, ANALYSIS_MODES, None, 10, True),
 )
 
 

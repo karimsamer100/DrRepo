@@ -20,6 +20,7 @@ from drrepo.remediation.suggestions import generate_suggestions, count_suggestio
 from drrepo.analyzers.registry import validate_analysis_mode
 from drrepo.environment import detect_dependency_environment
 from drrepo.intelligence import build_repository_intelligence
+from drrepo.readiness import build_devops_readiness
 
 
 def _run_with_mode(fn, root: str | Path, *, source_type: str, analysis_mode: str):
@@ -105,5 +106,55 @@ def build_audit(
         "by_severity": count_suggestions_by_severity(remediation),
     }
     scanned.update(build_repository_intelligence(scanned, profile_id=profile_id))
+    scanned["devops_readiness"] = build_devops_readiness(scanned, profile_id=profile_id)
+    devops_recommendations = scanned["devops_readiness"].get("recommendations", [])
+    if isinstance(devops_recommendations, list):
+        existing = scanned.get("recommendations_v2", [])
+        scanned["recommendations_v2"] = _prioritize_recommendations([*existing, *devops_recommendations])
+        _refresh_executive_priorities(scanned)
 
     return scanned
+
+
+def _prioritize_recommendations(recommendations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    type_rank = {
+        "release_blocker": 0,
+        "security_review": 1,
+        "repository_fix": 2,
+        "verification_step": 3,
+        "optional_improvement": 4,
+        "audit_environment": 5,
+    }
+    severity_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "unknown": 4}
+    sorted_recs = sorted(
+        recommendations,
+        key=lambda rec: (
+            type_rank.get(str(rec.get("recommendation_type", "repository_fix")), 2),
+            severity_rank.get(str(rec.get("severity", "unknown")), 4),
+            int(rec.get("priority", 999) or 999),
+            str(rec.get("title", "")),
+        ),
+    )
+    for index, rec in enumerate(sorted_recs, start=1):
+        rec["priority"] = index
+    return sorted_recs
+
+
+def _refresh_executive_priorities(audit: Dict[str, Any]) -> None:
+    executive = audit.get("executive_report")
+    recommendations = audit.get("recommendations_v2")
+    if not isinstance(executive, dict) or not isinstance(recommendations, list) or not recommendations:
+        return
+    top = next((rec for rec in recommendations if isinstance(rec, dict)), None)
+    if not top:
+        return
+    title = top.get("title")
+    if isinstance(title, str) and title:
+        executive["biggest_gap"] = title
+    steps = top.get("recommended_steps")
+    if isinstance(steps, list) and steps:
+        first_step = str(steps[0])
+    else:
+        first_step = str(top.get("success_check") or top.get("why_it_matters") or "")
+    if first_step:
+        executive["next_best_step"] = first_step

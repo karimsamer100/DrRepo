@@ -33,6 +33,10 @@ IGNORED_DIRS = {
     "build",
 }
 
+SIGNAL_EXCLUDED_DIRS = {"tests", "test", "docs", "examples", "fixtures"}
+APP_DIR_NAMES = {"app", "api", "backend", "server", "service"}
+FRONTEND_DIR_NAMES = {"frontend", "web", "client", "ui"}
+
 
 def build_repository_intelligence(audit: dict[str, Any], *, profile_id: str = "student_portfolio") -> dict[str, Any]:
     """Build deterministic project understanding and executive reporting.
@@ -57,28 +61,34 @@ class ProjectUnderstandingBuilder:
         self.root = root
         self.audit = audit
         self.metadata = audit.get("metadata") if isinstance(audit.get("metadata"), dict) else {}
+        self.package_json_path: Path | None = None
 
     def build(self) -> ProjectUnderstanding:
         pyproject = self._read_pyproject()
         package_json = self._read_package_json()
         python_files = self._python_files(limit=250)
+        signal_files = [path for path in python_files if self._is_signal_file(path)]
         text_cache = {path: self._read_text(path) for path in python_files[:160]}
+        signal_text_cache = {path: self._read_text(path) for path in signal_files[:160]}
         evidence: list[EvidenceItem] = []
 
-        frameworks = self._detect_frameworks(text_cache, pyproject, evidence)
-        interfaces = self._detect_interfaces(pyproject, package_json, text_cache, evidence)
-        package_layout = self._detect_package_layout(pyproject)
-        architecture = self._build_architecture_summary(text_cache, package_json)
-        entry_points = self._detect_entry_points(pyproject, package_json, text_cache)
-        project_types = self._detect_project_types(frameworks, interfaces, architecture, entry_points, text_cache, package_json)
+        frameworks = self._detect_frameworks(signal_text_cache, pyproject, evidence)
+        interfaces = self._detect_interfaces(pyproject, package_json, signal_text_cache, evidence)
+        architecture = self._build_architecture_summary(signal_text_cache, package_json)
+        package_layout = self._detect_package_layout(pyproject, architecture)
+        entry_points = self._detect_entry_points(pyproject, package_json, signal_text_cache)
+        project_types = self._detect_project_types(frameworks, interfaces, architecture, entry_points, signal_text_cache, package_json)
         primary_type = project_types[0] if project_types else "unknown/mixed project"
         secondary_types = project_types[1:]
+        domain_specializations = [item for item in secondary_types if item in {"ML training project", "ML inference/service project", "RAG/LLM application", "data-science/notebook project"}]
         confidence = self._confidence(evidence, high=4, medium=2)
 
         identity = ProjectIdentity(
             primary_language="Python" if self.metadata.get("python_files", 0) else "unknown",
             project_type=primary_type,
             secondary_project_types=secondary_types,
+            architecture_type=primary_type if primary_type in {"backend + frontend application", "FastAPI API", "Flask application", "Django application", "CLI tool", "Python library/package", "automation/script repository"} else None,
+            domain_specializations=domain_specializations,
             frameworks=frameworks,
             interfaces=interfaces,
             package_layout=package_layout,
@@ -103,14 +113,21 @@ class ProjectUnderstandingBuilder:
             return {}
 
     def _read_package_json(self) -> dict[str, Any]:
-        path = self.root / "package.json"
-        if not path.exists():
-            return {}
-        try:
-            data = json.loads(path.read_text(encoding="utf-8"))
-            return data if isinstance(data, dict) else {}
-        except Exception:
-            return {}
+        candidates = [self.root / "package.json", *[self.root / name / "package.json" for name in sorted(FRONTEND_DIR_NAMES)]]
+        for path in candidates:
+            if not path.exists():
+                continue
+            try:
+                data = json.loads(path.read_text(encoding="utf-8"))
+            except Exception:
+                continue
+            if isinstance(data, dict):
+                self.package_json_path = path
+                return data
+        return {}
+
+    def _package_json_rel(self) -> str:
+        return self._rel(self.package_json_path) if self.package_json_path else "package.json"
 
     def _python_files(self, *, limit: int) -> list[Path]:
         files: list[Path] = []
@@ -128,6 +145,15 @@ class ProjectUnderstandingBuilder:
         except Exception:
             return True
         return any(part in IGNORED_DIRS for part in rel.parts)
+
+    def _is_signal_file(self, path: Path) -> bool:
+        try:
+            rel = path.relative_to(self.root)
+        except Exception:
+            return False
+        if len(rel.parts) >= 3 and rel.parts[0] == "drrepo" and rel.parts[1] in {"intelligence", "readiness", "analyzers"}:
+            return False
+        return not any(part in SIGNAL_EXCLUDED_DIRS for part in rel.parts)
 
     def _read_text(self, path: Path) -> str:
         try:
@@ -168,7 +194,7 @@ class ProjectUnderstandingBuilder:
                     self._add_evidence(evidence, self._rel(path), f"{label} signal", "source import or object")
                     found = True
                     break
-            if not found and label.lower() in dependency_text:
+            if not found and label in {"FastAPI", "Flask", "Django", "Streamlit", "Gradio"} and label.lower() in dependency_text:
                 self._add_evidence(evidence, "pyproject.toml", f"{label} dependency", None)
                 found = True
             if found:
@@ -181,11 +207,12 @@ class ProjectUnderstandingBuilder:
         if scripts:
             interfaces.append("CLI")
             self._add_evidence(evidence, "pyproject.toml", "console script entry points", ", ".join(sorted(scripts)))
-        if any(framework in json.dumps(pyproject).lower() for framework in ("fastapi", "flask", "django")):
-            interfaces.append("API")
         if package_json:
-            interfaces.append("Frontend")
-            self._add_evidence(evidence, "package.json", "frontend package metadata", None)
+            interfaces.append("web frontend")
+            self._add_evidence(evidence, self._package_json_rel(), "frontend package metadata", None)
+        if any(_has_api_signal(text) for text in text_cache.values()) or any(framework in json.dumps(pyproject).lower() for framework in ("fastapi", "flask", "django")):
+            interfaces.append("API")
+            self._add_evidence(evidence, "source", "API framework or application object", None)
         for path, text in text_cache.items():
             if re.search(r"if\s+__name__\s*==\s*['\"]__main__['\"]", text):
                 interfaces.append("script")
@@ -193,17 +220,27 @@ class ProjectUnderstandingBuilder:
                 break
         return sorted(set(interfaces))
 
-    def _detect_package_layout(self, pyproject: dict[str, Any]) -> str:
+    def _detect_package_layout(self, pyproject: dict[str, Any], architecture: ArchitectureSummary) -> str:
         source_roots = self.metadata.get("source_roots") or []
+        top_dirs = set(self.metadata.get("top_level_directories") or [])
+        if architecture.backend_present and architecture.frontend_present:
+            return "backend/frontend layout"
         if "src" in source_roots or (self.root / "src").is_dir():
             return "src layout"
-        if "." in source_roots:
-            return "flat scripts"
         project_name = pyproject.get("project", {}).get("name") if isinstance(pyproject.get("project"), dict) else None
         if project_name and (self.root / str(project_name).replace("-", "_")).is_dir():
             return "package directory"
-        if source_roots:
+        package_dirs = [
+            name for name in top_dirs
+            if name not in SIGNAL_EXCLUDED_DIRS and name not in FRONTEND_DIR_NAMES and (self.root / name / "__init__.py").exists()
+        ]
+        if package_dirs:
             return "package directory"
+        if source_roots:
+            roots_without_dot = [root for root in source_roots if root != "."]
+            if roots_without_dot:
+                return "package directory"
+            return "flat scripts"
         return "unknown"
 
     def _build_architecture_summary(self, text_cache: dict[Path, str], package_json: dict[str, Any]) -> ArchitectureSummary:
@@ -217,12 +254,14 @@ class ProjectUnderstandingBuilder:
             ci_signals.append(".github/workflows")
         if ".gitlab-ci.yml" in files:
             ci_signals.append(".gitlab-ci.yml")
+        api_present = any(_has_api_signal(text) for text in text_cache.values())
+        backend_present = bool(self.metadata.get("python_files", 0)) and (api_present or bool(APP_DIR_NAMES & dirs) or any((self.root / name).is_dir() for name in APP_DIR_NAMES))
         return ArchitectureSummary(
-            backend_present=bool(self.metadata.get("python_files", 0)),
-            frontend_present=bool(package_json or {"frontend", "web", "client", "ui"} & dirs),
+            backend_present=backend_present or bool(self.metadata.get("python_files", 0)),
+            frontend_present=bool(package_json and ((self.root / "frontend").is_dir() or (self.root / "src").is_dir() or "vite" in json.dumps(package_json).lower()) or bool(FRONTEND_DIR_NAMES & dirs)),
             cli_present="cli" in joined or bool(self._console_scripts(self._read_pyproject())),
-            api_present=any(token in joined for token in ("fastapi", "flask", "django")),
-            ml_present=any(token in joined for token in ("sklearn", "torch", "tensorflow", "fit(", "predict(")),
+            api_present=api_present,
+            ml_present=_has_strong_ml_signal(joined, dirs),
             notebooks_present=any(not self._ignored(path) for path in self.root.rglob("*.ipynb")),
             database_signals=database_signals,
             container_signals=container_signals,
@@ -251,10 +290,10 @@ class ProjectUnderstandingBuilder:
             if name in scripts:
                 entries.append(EntryPoint(
                     kind="frontend_script",
-                    path="package.json",
+                    path=self._package_json_rel(),
                     command=f"npm run {name}",
                     confidence="high",
-                    evidence=[EvidenceItem("package.json", "npm script", str(scripts[name]))],
+                    evidence=[EvidenceItem(self._package_json_rel(), "npm script", str(scripts[name]))],
                 ))
         for path, text in text_cache.items():
             rel = self._rel(path)
@@ -291,7 +330,9 @@ class ProjectUnderstandingBuilder:
         framework_set = set(frameworks)
         entry_kinds = {entry.kind for entry in entry_points}
         text = "\n".join(text_cache.values()).lower()
-        if architecture.backend_present and architecture.frontend_present:
+        has_api = "API" in interfaces or architecture.api_present
+        has_frontend = "web frontend" in interfaces or architecture.frontend_present
+        if has_api and has_frontend:
             types.append("backend + frontend application")
         if "FastAPI" in framework_set:
             types.append("FastAPI API")
@@ -301,13 +342,18 @@ class ProjectUnderstandingBuilder:
             types.append("Django application")
         if "CLI" in interfaces:
             types.append("CLI tool")
-        if architecture.notebooks_present:
+        if architecture.notebooks_present and not has_api and not has_frontend:
             types.append("data-science/notebook project")
-        if any(name in framework_set for name in ("scikit-learn", "PyTorch", "TensorFlow")) or {"train.py", "models", "data"} & set(self.metadata.get("top_level_directories") or []):
+        top_dirs = set(self.metadata.get("top_level_directories") or [])
+        if (any(name in framework_set for name in ("scikit-learn", "PyTorch", "TensorFlow")) and ("ml_training" in entry_kinds or {"models", "data"} & top_dirs)) or "train.py" in {entry.path for entry in entry_points}:
             types.append("ML training project")
         if "ml_inference" in entry_kinds or "predict(" in text:
             types.append("ML inference/service project")
-        if any(name in framework_set for name in ("LangChain", "LlamaIndex")) or "openai" in text or "retriever" in text:
+        has_rag_pattern = (
+            re.search(r"\bretriever\b", text)
+            and re.search(r"\b(vectorstore|embedding|similarity_search)\b", text)
+        ) or re.search(r"\b(openai|client)\.(embeddings|chat\.completions)", text)
+        if any(name in framework_set for name in ("LangChain", "LlamaIndex")) or has_rag_pattern:
             types.append("RAG/LLM application")
         if self._console_scripts(self._read_pyproject()) and "CLI tool" not in types:
             types.append("Python library/package")
@@ -315,7 +361,7 @@ class ProjectUnderstandingBuilder:
             types.append("Python library/package")
         if not types and self.metadata.get("python_files", 0):
             types.append("automation/script repository")
-        if self.metadata.get("has_readme") and self.metadata.get("python_files", 0) and not architecture.ci_signals:
+        if self.metadata.get("has_readme") and self.metadata.get("python_files", 0) and not architecture.ci_signals and not has_api and not has_frontend:
             types.append("student portfolio/demo project")
         return _dedupe_strings(types) or ["unknown/mixed project"]
 
@@ -333,7 +379,7 @@ class ProjectUnderstandingBuilder:
             evidence.append(EvidenceItem("dependency metadata", "likely install command inferred", str(install)))
         if package_json:
             install_commands.append("npm install")
-            evidence.append(EvidenceItem("package.json", "frontend dependency metadata", None))
+            evidence.append(EvidenceItem(self._package_json_rel(), "frontend dependency metadata", None))
 
         for entry in entry_points:
             if entry.command:
@@ -677,6 +723,23 @@ def _dedupe_strings(items: list[str]) -> list[str]:
         seen.add(value)
         result.append(value)
     return result
+
+
+def _has_api_signal(text: str) -> bool:
+    return bool(
+        re.search(r"\bfrom\s+fastapi\b", text)
+        and re.search(r"\w+\s*=\s*FastAPI\s*\(", text)
+        or re.search(r"\bfrom\s+flask\b", text)
+        and re.search(r"\w+\s*=\s*Flask\s*\(", text)
+        or "DJANGO_SETTINGS_MODULE" in text
+        or "django.core" in text
+    )
+
+
+def _has_strong_ml_signal(joined_text: str, top_dirs: set[str]) -> bool:
+    if {"models", "data", "notebooks"} & top_dirs and any(token in joined_text for token in ("sklearn", "torch", "tensorflow", "fit(", "predict(")):
+        return True
+    return bool(re.search(r"\b(train|fit|predict|inference)\s*\(", joined_text) and any(token in joined_text for token in ("sklearn", "torch", "tensorflow")))
 
 
 def format_verdict(verdict: str) -> str:

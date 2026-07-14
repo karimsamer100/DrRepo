@@ -22,3 +22,12 @@ def test_frontend_types_include_repository_intelligence_contracts():
     assert "export interface ExecutiveReport" in source
     assert "export interface StructuredRecommendation" in source
     assert "recommendations_v2?: StructuredRecommendation[]" in source
+
+
+def test_frontend_types_include_devops_readiness_contracts():
+    source = Path("frontend/src/types/api.ts").read_text(encoding="utf-8")
+    panel = Path("frontend/src/components/DevOpsReadinessPanel.tsx").read_text(encoding="utf-8")
+
+    assert "export interface DevOpsReadiness" in source
+    assert "devops_readiness?: DevOpsReadiness" in source
+    assert "DevOps & release readiness" in panel

@@ -21,7 +21,7 @@ def _limitation_reason(entry: Dict[str, Any]) -> str | None:
         return f"{tool}: analyzer failed to run ({reason})"
     if status == "partial":
         errors = entry.get("errors") or []
-        reason = str(errors[0]).strip() if isinstance(errors, list) and errors else "Analyzer produced partial evidence."
+        reason = summary.get("partial_reason") or (str(errors[0]).strip() if isinstance(errors, list) and errors else "Analyzer produced partial evidence.")
         return f"{tool}: partial evidence ({reason})"
     return None
 
@@ -47,6 +47,7 @@ def render_terminal_summary(audit: Dict[str, Any]) -> str:
     understanding = _safe_get(audit, "project_understanding", {}) or {}
     identity = _safe_get(understanding, "project_identity", {}) or {}
     runnability = _safe_get(understanding, "runnability", {}) or {}
+    devops = _safe_get(audit, "devops_readiness", {}) or {}
 
     if executive:
         lines.append(str(_safe_get(executive, "headline", "Executive summary")))
@@ -66,6 +67,22 @@ def render_terminal_summary(audit: Dict[str, Any]) -> str:
     if runnability:
         lines.append(f"Runnability: {_safe_get(runnability, 'status', 'unknown')}")
     if identity or runnability:
+        lines.append("")
+
+    if devops:
+        score = _safe_get(devops, "observed_score")
+        lines.append(
+            "DevOps readiness: "
+            f"{_safe_get(devops, 'verdict', 'unknown')} "
+            f"({score if score is not None else 'not assessed'}, confidence {_safe_get(devops, 'evidence_confidence', 'unknown')})"
+        )
+        next_step = _safe_get(devops, "next_best_step")
+        if next_step:
+            lines.append(f"Release next step: {next_step}")
+        blockers = _safe_get(devops, "blockers", []) or []
+        if blockers:
+            titles = [str(item.get("title", "blocker")) for item in blockers if isinstance(item, dict)]
+            lines.append("Release blockers: " + ", ".join(titles[:3]))
         lines.append("")
 
     if source_value:
@@ -120,12 +137,15 @@ def render_terminal_summary(audit: Dict[str, Any]) -> str:
     lines.append("")
 
     # Suggestions: top 3 actions
-    suggestions = _safe_get(audit, "recommendations_v2", []) or _safe_get(audit, "remediation_suggestions", []) or []
+    recommendations_v2 = _safe_get(audit, "recommendations_v2", []) or []
+    suggestions = recommendations_v2 or _safe_get(audit, "remediation_suggestions", []) or []
     lines.append("")
     # Suggestions summary and top actions
     total = None
     rem_summary = _safe_get(audit, "remediation_summary", {}) or {}
-    if isinstance(rem_summary, dict):
+    if recommendations_v2:
+        total = len(recommendations_v2)
+    elif isinstance(rem_summary, dict):
         total = rem_summary.get("total")
     if total is None:
         try:

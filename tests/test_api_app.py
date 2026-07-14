@@ -71,6 +71,8 @@ def test_capabilities_endpoint():
     assert modes["quick_safe"]["executes_repository_code"] is False
     assert modes["deep_local"]["supported_source_types"] == ["local_path"]
     assert analyzers["pytest"]["executes_repository_code"] is True
+    assert analyzers["ci_config"]["executes_repository_code"] is False
+    assert analyzers["container_config"]["section"] == "readiness"
     assert ".[analysis]" in data["setup"]["install_command"]
 
 
@@ -91,6 +93,7 @@ def test_audit_local_path_success():
     assert "project_understanding" in data["audit"]
     assert "executive_report" in data["audit"]
     assert "recommendations_v2" in data["audit"]
+    assert "devops_readiness" in data["audit"]
     assert data["audit"]["executive_report"]["verdict"] == data["audit"]["diagnosis"]["repository_health"]["label"]
     assert data["markdown"] is None
 
