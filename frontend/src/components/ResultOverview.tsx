@@ -7,31 +7,68 @@ import {
   getFindingFamilies,
   scoreColor,
 } from '../lib/score'
+import {
+  categoryEvidenceState,
+  compactSource,
+  formatVerdict,
+  shortSourceMode,
+} from '../lib/presentation'
 
 interface ResultOverviewProps {
   data: AuditResponse
 }
 
-function CategoryBar({ label, score }: { label: string; score: number }) {
+function CategoryBar({
+  label,
+  score,
+  evidence,
+}: {
+  label: string
+  score: number
+  evidence: string | null
+}) {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduceMotion) {
+      setMounted(true)
+      return
+    }
     const raf = requestAnimationFrame(() => setMounted(true))
     return () => cancelAnimationFrame(raf)
   }, [])
 
   return (
-    <div className="flex items-center gap-3 py-1.5">
-      <div className="w-28 shrink-0 text-[11px] text-muted capitalize">{label}</div>
-      <div className="flex-1 h-1.5 rounded-full bg-surface-2 overflow-hidden">
+    <div className="py-2">
+      <div className="mb-1 flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <div className="text-xs text-muted capitalize">{label}</div>
+          {evidence && (
+            <div className="mt-0.5 text-[10px] uppercase tracking-[0.14em] text-faint">
+              {evidence}
+            </div>
+          )}
+        </div>
+        <div className={`shrink-0 text-right text-xs font-mono font-medium ${scoreColor(score)}`}>
+          {score}
+        </div>
+      </div>
+      <div
+        className="h-1.5 overflow-hidden rounded-full bg-surface-2"
+        role="progressbar"
+        aria-label={`${label} observed score`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={score}
+      >
         <div
-          className={`h-full rounded-full origin-left transition-transform duration-500 ease-out-strong ${
+          className={`h-full origin-left rounded-full transition-transform duration-500 ease-out-strong ${
             score >= 85 ? 'bg-health' : score >= 70 ? 'bg-attention' : score >= 50 ? 'bg-warning' : 'bg-error'
           }`}
           style={{ transform: `scaleX(${mounted ? score / 100 : 0})` }}
         />
       </div>
-      <div className={`w-8 text-right text-xs font-mono font-medium ${scoreColor(score)}`}>{score}</div>
     </div>
   )
 }
@@ -41,13 +78,10 @@ export function ResultOverview({ data }: ResultOverviewProps) {
   const diagnosis = data.audit.diagnosis
   const hardFlags = diagnosis?.hard_flags || []
   const evidenceConfidence = diagnosis?.evidence_confidence
-  const evidenceTitle =
-    evidenceConfidence?.label === 'limited' ? 'Limited evidence' : 'Partial evidence'
-
+  const evidenceLabel = evidenceConfidence?.label || 'unknown'
   const families = getFindingFamilies(data.audit)
   const issueFamilies = families.filter((f) => f.count > 0)
-  const hasIssues = hardFlags.length > 0 || issueFamilies.length > 0
-  const isHealthy = diagnosis?.repository_health?.label === 'healthy' && !hasIssues
+  const isHealthy = diagnosis?.repository_health?.label === 'healthy' && hardFlags.length === 0
 
   const categories = scoring?.categories || {}
   const categoryEntries = Object.entries(categories).filter(
@@ -61,18 +95,123 @@ export function ResultOverview({ data }: ResultOverviewProps) {
     ])
   )
 
+  const missingTools = evidenceConfidence?.missing_optional_tools || []
+  const skippedTools = evidenceConfidence?.skipped_optional_tools || []
+
   return (
     <section className="space-y-5">
-      {hasIssues && (
-        <div className="rounded-md border border-error/30 bg-error/5 p-3">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-error mb-2">
-            Attention areas
+      <div className="surface-raised overflow-hidden rounded-2xl">
+        <div className="grid gap-5 p-5 sm:p-6 lg:grid-cols-[1fr_220px]">
+          <div className="min-w-0">
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-border bg-base px-2.5 py-1 text-[11px] font-medium text-faint">
+                {shortSourceMode(data.source_type)}
+              </span>
+              <span className="rounded-full border border-border bg-base px-2.5 py-1 text-[11px] font-medium text-faint">
+                {(data.audit.analysis?.mode || data.analysis_mode).replace(/_/g, ' ')}
+              </span>
+              {diagnosis?.repository_health && (
+                <StatusBadge
+                  label={diagnosis.repository_health.label}
+                  score={diagnosis.repository_health.score ?? undefined}
+                />
+              )}
+              {evidenceConfidence && (
+                <span className="rounded-full border border-warning/30 bg-warning/10 px-2.5 py-1 text-[11px] font-medium text-warning">
+                  Evidence: {evidenceLabel}
+                </span>
+              )}
+            </div>
+
+            <h2 className="text-2xl font-semibold tracking-tight text-primary">
+              {formatVerdict(diagnosis?.repository_health?.label)}
+            </h2>
+            <p className="mt-2 break-all font-mono text-xs text-faint">
+              {compactSource(data.source_value)}
+            </p>
+            {diagnosis?.repository_health?.summary && (
+              <p className="mt-4 max-w-2xl text-sm leading-6 text-muted">
+                {diagnosis.repository_health.summary}
+              </p>
+            )}
+
+            {hardFlags.length > 0 ? (
+              <div className="mt-5 rounded-xl border border-error/30 bg-error/5 p-4">
+                <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-error">
+                  Blockers preventing a healthy verdict
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {hardFlags.map((flag) => (
+                    <span
+                      key={flag}
+                      className="rounded-full border border-error/30 bg-error/10 px-2.5 py-1 text-[11px] font-medium text-error"
+                    >
+                      {attentionAreaFromFlag(flag)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="mt-5 rounded-xl border border-health/25 bg-health/5 p-4">
+                <div className="text-sm font-medium text-health">
+                  {isHealthy ? 'No hard blockers detected.' : 'No hard blockers reported.'}
+                </div>
+                <p className="mt-1 text-xs leading-5 text-muted">
+                  Verdict is based on observed evidence; confidence describes how complete that evidence was.
+                </p>
+              </div>
+            )}
           </div>
-          <div className="flex flex-wrap gap-1.5">
+
+          <div className="min-w-0">
+            <ScoreCard
+              title="Observed score"
+              score={scoring?.overall_score}
+              label={diagnosis?.repository_health?.label}
+              subtitle="Quality of evidence DrRepo could verify."
+              size="hero"
+            />
+          </div>
+        </div>
+      </div>
+
+      {evidenceConfidence && evidenceConfidence.label !== 'full' && (
+        <div className="rounded-2xl border border-warning/30 bg-warning/5 p-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-warning">
+                Evidence confidence: {evidenceLabel}
+              </div>
+              <p className="mt-2 text-sm leading-6 text-primary">{evidenceConfidence.summary}</p>
+            </div>
+            {(missingTools.length > 0 || skippedTools.length > 0) && (
+              <div className="flex shrink-0 flex-wrap gap-2 sm:max-w-xs sm:justify-end">
+                {missingTools.map((tool) => (
+                  <span key={`missing-${tool}`} className="rounded-full border border-border bg-base px-2 py-1 text-[10px] font-mono text-faint">
+                    {tool} unavailable
+                  </span>
+                ))}
+                {skippedTools.map((tool) => (
+                  <span key={`skipped-${tool}`} className="rounded-full border border-warning/30 bg-warning/10 px-2 py-1 text-[10px] font-mono text-warning">
+                    {tool} skipped
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {attentionAreas.length > 0 && (
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <div className="mb-3 text-[11px] font-medium uppercase tracking-[0.16em] text-faint">
+            Attention map
+          </div>
+          <div className="flex flex-wrap gap-2">
             {attentionAreas.map((area) => (
               <span
                 key={area}
-                className="rounded-full border border-error/30 bg-error/10 px-2 py-0.5 text-[11px] font-medium text-error"
+                className="rounded-full border border-border bg-base px-2.5 py-1 text-[11px] font-medium text-muted"
               >
                 {area}
               </span>
@@ -81,70 +220,35 @@ export function ResultOverview({ data }: ResultOverviewProps) {
         </div>
       )}
 
-      {evidenceConfidence && evidenceConfidence.label !== 'full' && (
-        <div className="rounded-md border border-warning/30 bg-warning/5 p-3">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-warning mb-2">
-            {evidenceTitle}
-          </div>
-          <p className="text-sm text-primary">{evidenceConfidence.summary}</p>
-        </div>
-      )}
-
-      {isHealthy && (
-        <div className="rounded-md border border-health/30 bg-health/5 p-3">
-          <p className="text-sm text-health">
-            Core checks look good - no critical issues detected.
-          </p>
-        </div>
-      )}
-
-      <div className="rounded-lg border border-border bg-surface p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <div className="text-[11px] font-medium uppercase tracking-wider text-faint mb-0.5">
-              Repository
-            </div>
-            <div className="font-mono text-sm text-primary break-all">{data.source_value}</div>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="rounded-full border border-border bg-surface-2 px-2 py-0.5 text-[11px] font-medium text-faint">
-              {data.status}
-            </span>
-            {diagnosis?.repository_health && (
-              <StatusBadge
-                label={diagnosis.repository_health.label}
-                score={diagnosis.repository_health.score ?? undefined}
-              />
-            )}
-          </div>
-        </div>
-
-        {diagnosis?.repository_health?.summary && (
-          <p className="mt-3 pt-3 border-t border-border text-sm text-primary leading-relaxed">
-            {diagnosis.repository_health.summary}
-          </p>
-        )}
-      </div>
-
-      <div className="space-y-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <ScoreCard
-          title="Overall score"
-          score={scoring?.overall_score}
-          label={diagnosis?.repository_health?.label}
-          size="hero"
+          title="Repository health"
+          score={scoring?.repository_health_score}
+          subtitle="Code, tests, security, and maintainability."
         />
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <ScoreCard title="Repository Health" score={scoring?.repository_health_score} />
-          <ScoreCard title="Portfolio Readiness" score={scoring?.portfolio_readiness_score} />
-        </div>
+        <ScoreCard
+          title="Portfolio readiness"
+          score={scoring?.portfolio_readiness_score}
+          subtitle="Documentation, structure, reproducibility, and presentation."
+        />
       </div>
 
       {categoryEntries.length > 0 && (
-        <div className="rounded-lg border border-border bg-surface p-4">
-          <h3 className="text-xs font-medium text-muted mb-2">Category scores</h3>
-          <div className="max-w-md divide-y divide-border/50">
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <div className="mb-3 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-faint">
+              Category scores
+            </h3>
+            <p className="text-xs text-muted">Observed scores, paired with evidence status.</p>
+          </div>
+          <div className="divide-y divide-border/50">
             {categoryEntries.map(([key, score]) => (
-              <CategoryBar key={key} label={key.replace(/_/g, ' ')} score={score} />
+              <CategoryBar
+                key={key}
+                label={key.replace(/_/g, ' ')}
+                score={score}
+                evidence={categoryEvidenceState(key, data)}
+              />
             ))}
           </div>
         </div>

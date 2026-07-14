@@ -12,18 +12,19 @@ interface ExportActionsProps {
 }
 
 export function ExportActions({ data }: ExportActionsProps) {
-  const [copied, setCopied] = useState(false)
-
-  const base = safeFilenameBase(data.source_value)
-  const suffix = timestampSuffix()
+  const [copyStatus, setCopyStatus] = useState<'idle' | 'copied' | 'failed'>('idle')
 
   const handleDownloadJson = () => {
+    const base = safeFilenameBase(data.source_value)
+    const suffix = timestampSuffix()
     const content = JSON.stringify(data, null, 2)
     downloadBlob(content, `${base}_${suffix}.drrepo.json`, 'application/json')
   }
 
   const handleDownloadMarkdown = () => {
     if (!data.markdown) return
+    const base = safeFilenameBase(data.source_value)
+    const suffix = timestampSuffix()
     downloadBlob(data.markdown, `${base}_${suffix}.md`, 'text/markdown')
   }
 
@@ -31,8 +32,11 @@ export function ExportActions({ data }: ExportActionsProps) {
     if (!data.markdown) return
     const ok = await copyTextToClipboard(data.markdown)
     if (ok) {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 1500)
+      setCopyStatus('copied')
+      setTimeout(() => setCopyStatus('idle'), 1500)
+    } else {
+      setCopyStatus('failed')
+      setTimeout(() => setCopyStatus('idle'), 2000)
     }
   }
 
@@ -42,8 +46,15 @@ export function ExportActions({ data }: ExportActionsProps) {
     'inline-flex w-full items-center justify-center gap-2 rounded-md border border-border bg-base px-3 py-2 text-xs font-medium text-primary transition-colors duration-150 ease-out-strong hover:border-brand/30 hover:text-brand disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:border-border disabled:hover:text-primary'
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4">
-      <h3 className="text-xs font-medium text-muted mb-3">Export result</h3>
+    <section className="rounded-2xl border border-border bg-surface p-4">
+      <div className="mb-3 flex items-start justify-between gap-3">
+        <div>
+          <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-faint">
+            Export
+          </h3>
+          <p className="mt-1 text-xs text-muted">Save the observed result data.</p>
+        </div>
+      </div>
 
       <div className="space-y-2">
         <button type="button" onClick={handleDownloadJson} className={buttonClass}>
@@ -92,9 +103,8 @@ export function ExportActions({ data }: ExportActionsProps) {
               type="button"
               onClick={handleCopyMarkdown}
               className={buttonClass}
-              aria-live="polite"
             >
-              {copied ? (
+              {copyStatus === 'copied' ? (
                 <svg
                   className="h-3.5 w-3.5"
                   viewBox="0 0 24 24"
@@ -122,8 +132,15 @@ export function ExportActions({ data }: ExportActionsProps) {
                   <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
                 </svg>
               )}
-              {copied ? 'Copied' : 'Copy Markdown'}
+              {copyStatus === 'copied' ? 'Copied' : copyStatus === 'failed' ? 'Copy failed' : 'Copy Markdown'}
             </button>
+            <span className="sr-only" aria-live="polite">
+              {copyStatus === 'copied'
+                ? 'Markdown copied to clipboard'
+                : copyStatus === 'failed'
+                ? 'Markdown copy failed'
+                : ''}
+            </span>
           </>
         ) : (
           <p className="rounded-md border border-border bg-base px-3 py-2 text-[11px] text-faint">

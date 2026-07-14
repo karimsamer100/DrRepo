@@ -17,127 +17,184 @@ import {
   clearRecentAudits,
   loadRecentAudits,
 } from './lib/recentAudits'
+import { classifyError } from './lib/presentation'
+import { getCapabilities } from './api/client'
+import type { AuditResponse, CapabilitiesResponse } from './types/api'
+
+function ResultLayout({ data }: { data: AuditResponse }) {
+  const analyzerSections = {
+    static_analysis: data.audit.static_analysis,
+    test_analysis: data.audit.test_analysis,
+    repository_analysis: data.audit.repository_analysis,
+  }
+
+  return (
+    <div className="grid gap-6 pb-12 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+      <div className="min-w-0 space-y-6">
+        <ResultOverview data={data} />
+        <FindingsList audit={data.audit} />
+        <AdvisorPanel advisor={data.advisor} profileId={data.profile_id} />
+      </div>
+      <aside className="min-w-0 space-y-5 lg:sticky lg:top-6">
+        <AnalyzerStatusGrid sections={analyzerSections} />
+        <MetadataCard
+          metadata={data.audit.metadata}
+          dependencyEnvironment={data.audit.dependency_environment}
+        />
+        <ExportActions data={data} />
+        <MarkdownPreview content={data.markdown} />
+      </aside>
+    </div>
+  )
+}
 
 export default function App() {
   const { state, execute, reset } = useAudit()
   const [recentAudits, setRecentAudits] = useState<RecentAudit[]>([])
+  const [capabilities, setCapabilities] = useState<CapabilitiesResponse | null>(null)
+  const [capabilityError, setCapabilityError] = useState<string | null>(null)
 
   useEffect(() => {
     setRecentAudits(loadRecentAudits())
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+    getCapabilities()
+      .then((data) => {
+        if (!cancelled) {
+          setCapabilities(data)
+          setCapabilityError(null)
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setCapabilityError(err instanceof Error ? err.message : 'Could not load capabilities')
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  useEffect(() => {
     if (state.status !== 'done' || !state.data) return
 
     const item: RecentAudit = {
-      sourceType: state.data.source_type === 'github_url' ? 'github_url' : 'local_path',
+      sourceType: state.data.source_type,
       sourceLabel: state.data.source_value,
+      analysisMode: state.data.analysis_mode,
       profile: state.data.profile_id,
       createdAt: new Date().toISOString(),
       overallScore: state.data.audit.scoring?.overall_score ?? null,
       verdictLabel: state.data.audit.diagnosis?.repository_health?.label ?? null,
+      evidenceLabel: state.data.audit.diagnosis?.evidence_confidence?.label ?? null,
+      blockerCount: state.data.audit.diagnosis?.hard_flags?.length ?? 0,
     }
 
     setRecentAudits((current) => addRecentAudit(current, item))
   }, [state.status, state.data])
 
-  const analyzerSections =
-    state.status === 'done' && state.data
-      ? {
-          static_analysis: state.data.audit.static_analysis,
-          test_analysis: state.data.audit.test_analysis,
-          repository_analysis: state.data.audit.repository_analysis,
-        }
-      : undefined
-
-  const metadata = state.status === 'done' && state.data ? state.data.audit.metadata : undefined
-  const markdown = state.status === 'done' && state.data ? state.data.markdown : null
-
   const handleClearRecent = () => {
     setRecentAudits(clearRecentAudits())
   }
 
+  const handleRetry = () => {
+    const request = state.lastRequest
+    if (!request) return
+    execute(
+      request.source_type,
+      request.source_value,
+      request.analysis_mode || (request.source_type === 'github_url' ? 'quick_safe' : 'deep_local'),
+      request.profile_id,
+      request.include_markdown
+    )
+  }
+
+  const errorInfo = state.status === 'error' ? classifyError(state.error) : null
+
   return (
-    <div className="flex h-screen w-full bg-base text-primary antialiased">
+    <div className="flex h-dvh w-full flex-col bg-base text-primary antialiased sm:flex-row">
+      <a href="#main-content" className="skip-link">
+        Skip to diagnostic
+      </a>
       <Sidebar onReset={reset} />
-      <div className="flex flex-col flex-1 min-w-0">
+      <div className="flex min-w-0 flex-1 flex-col">
         <AuditConsoleHeader onNew={state.status !== 'idle' ? reset : undefined} />
-        <main className="flex-1 overflow-y-auto p-6">
+        <main
+          id="main-content"
+          className="flex-1 overflow-y-auto px-4 py-5 sm:p-6"
+          aria-busy={state.status === 'loading'}
+        >
           <div className="mx-auto max-w-6xl">
             {state.status === 'idle' && (
-              <div className="flex items-center justify-center min-h-[60vh]">
+              <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center sm:min-h-[60vh]">
                 <AuditInputCard
                   onSubmit={execute}
                   recentAudits={recentAudits}
                   onClearRecent={handleClearRecent}
+                  capabilities={capabilities}
+                  capabilityError={capabilityError}
                 />
               </div>
             )}
 
             {state.status === 'loading' && (
-              <div className="flex items-center justify-center min-h-[60vh]">
-                <LoadingState />
+              <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center sm:min-h-[60vh]">
+                <LoadingState request={state.lastRequest} />
               </div>
             )}
 
-            {state.status === 'error' && (
-              <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-up">
-                <div className="w-full max-w-xl rounded-xl border border-error/30 bg-error/5 p-6 text-center">
-                  <h2 className="text-sm font-semibold text-error mb-2">
-                    Diagnostic failed
-                  </h2>
-                  <p className="text-sm text-primary mb-4">{state.error}</p>
-                  <button
-                    type="button"
-                    onClick={reset}
-                    className="rounded-md border border-error/30 px-4 py-2 text-xs font-medium text-error hover:bg-error/10 transition-colors duration-150 ease-out-strong"
-                  >
-                    Try again
-                  </button>
+            {state.status === 'error' && errorInfo && (
+              <div className="flex min-h-[calc(100dvh-9rem)] flex-col items-center justify-center sm:min-h-[60vh] animate-fade-up">
+                <div className="w-full max-w-2xl rounded-2xl border border-error/30 bg-error/5 p-5 sm:p-6" role="alert">
+                  <div className="mb-3 inline-flex rounded-full border border-error/30 bg-error/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-error">
+                    Audit stopped
+                  </div>
+                  <h1 className="text-xl font-semibold text-primary">{errorInfo.title}</h1>
+                  <p className="mt-2 text-sm leading-6 text-muted">{errorInfo.summary}</p>
+                  {errorInfo.detail && (
+                    <pre className="mt-4 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-border bg-base p-3 font-mono text-xs leading-5 text-faint">
+                      {errorInfo.detail}
+                    </pre>
+                  )}
+                  <p className="mt-4 text-sm text-primary">{errorInfo.nextAction}</p>
+                  <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                    {state.lastRequest && (
+                      <button
+                        type="button"
+                        onClick={handleRetry}
+                        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-base transition-colors hover:bg-brand-hover"
+                      >
+                        Retry same diagnostic
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={reset}
+                      className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-4 py-2 text-sm font-medium text-primary transition-colors hover:border-brand/30 hover:text-brand"
+                    >
+                      Edit source
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
 
             {state.status === 'done' && state.data && (
               <>
-                <div className="mb-6 pb-4 border-b border-border">
-                  <h1 className="text-xl font-semibold text-primary tracking-tight">Diagnostic result</h1>
-                  <p className="text-xs text-faint mt-1 font-mono">{state.data.source_value}</p>
-                </div>
-
-                {/* Desktop two-column layout */}
-                <div className="hidden lg:grid lg:grid-cols-3 lg:gap-8 pb-12">
-                  <div className="col-span-2 space-y-6">
-                    <ResultOverview data={state.data} />
-                    <FindingsList audit={state.data.audit} />
-                    <AdvisorPanel
-                      advisor={state.data.advisor}
-                      profileId={state.data.profile_id}
-                    />
+                <div className="mb-6 border-b border-border pb-4">
+                  <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-faint">
+                    Diagnostic result
                   </div>
-                  <div className="col-span-1">
-                    <div className="lg:sticky lg:top-6 space-y-6">
-                      <ExportActions data={state.data} />
-                      <AnalyzerStatusGrid sections={analyzerSections} />
-                      <MetadataCard metadata={metadata} />
-                      <MarkdownPreview content={markdown} />
-                    </div>
-                  </div>
+                  <h1 className="mt-1 text-xl font-semibold tracking-tight text-primary">
+                    Repository evidence review
+                  </h1>
+                  <p className="mt-1 break-all font-mono text-xs text-faint">
+                    {state.data.source_value}
+                  </p>
                 </div>
-
-                {/* Mobile single-column layout */}
-                <div className="lg:hidden space-y-6 pb-12">
-                  <ResultOverview data={state.data} />
-                  <FindingsList audit={state.data.audit} />
-                  <AdvisorPanel
-                    advisor={state.data.advisor}
-                    profileId={state.data.profile_id}
-                  />
-                  <ExportActions data={state.data} />
-                  <AnalyzerStatusGrid sections={analyzerSections} />
-                  <MetadataCard metadata={metadata} />
-                  <MarkdownPreview content={markdown} />
-                </div>
+                <ResultLayout data={state.data} />
               </>
             )}
           </div>

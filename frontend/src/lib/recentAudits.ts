@@ -1,12 +1,15 @@
-import type { SourceType } from '../types/api'
+import type { AnalysisMode, SourceType } from '../types/api'
 
 export interface RecentAudit {
   sourceType: SourceType
   sourceLabel: string
+  analysisMode?: AnalysisMode | null
   profile: string
   createdAt: string
   overallScore: number | null
   verdictLabel: string | null
+  evidenceLabel?: string | null
+  blockerCount?: number
 }
 
 const STORAGE_KEY = 'drrepo:recentAudits'
@@ -66,7 +69,12 @@ function isRecentAudit(value: unknown): value is RecentAudit {
   const candidate = value as Record<string, unknown>
   return (
     typeof candidate.sourceLabel === 'string' &&
+    (candidate.sourceType === 'local_path' || candidate.sourceType === 'github_url') &&
+    (candidate.analysisMode === undefined || candidate.analysisMode === null || candidate.analysisMode === 'quick_safe' || candidate.analysisMode === 'deep_local') &&
     typeof candidate.profile === 'string' &&
-    typeof candidate.createdAt === 'string'
+    typeof candidate.createdAt === 'string' &&
+    !Number.isNaN(Date.parse(candidate.createdAt)) &&
+    (typeof candidate.overallScore === 'number' || candidate.overallScore === null || candidate.overallScore === undefined) &&
+    (typeof candidate.verdictLabel === 'string' || candidate.verdictLabel === null || candidate.verdictLabel === undefined)
   )
 }

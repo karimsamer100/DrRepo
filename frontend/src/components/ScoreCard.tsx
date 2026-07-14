@@ -1,4 +1,4 @@
-import { labelForScore, scoreBgColor, scoreColor } from '../lib/score'
+import { labelForScore, scoreColor } from '../lib/score'
 
 interface ScoreCardProps {
   title: string
@@ -12,59 +12,36 @@ function displayLabel(label: string | undefined, score: number | null | undefine
   return (label || labelForScore(score)).replace(/_/g, ' ')
 }
 
-function CornerTick({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      width="16"
-      height="16"
-      viewBox="0 0 16 16"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <path d="M1 6V1h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-}
-
 export function ScoreCard({ title, score, subtitle, label, size = 'default' }: ScoreCardProps) {
+  const display = score === null || score === undefined ? '-' : `${Math.round(score)}`
+
   if (size === 'hero') {
-    const display = score === null || score === undefined ? '—' : `${Math.round(score)}`
     const verdict = displayLabel(label, score)
     return (
-      <div className="surface-raised rounded-xl p-6 relative overflow-hidden">
-        <CornerTick className="absolute top-4 left-4 text-brand/25" />
-        <div className="text-[11px] font-medium uppercase tracking-wider text-faint mb-2">
+      <div className="rounded-2xl border border-border bg-base p-4">
+        <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-faint">
           {title}
         </div>
-        <div className="flex flex-col sm:flex-row sm:items-end gap-4">
-          <div className="flex items-baseline gap-3">
-            <span className={`text-5xl font-bold tracking-tight font-mono ${scoreColor(score)}`}>
-              {display}
-            </span>
-            <span
-              className={`text-sm font-semibold px-2 py-0.5 rounded border ${scoreBgColor(score)} ${scoreColor(score)}`}
-            >
-              {verdict}
-            </span>
-          </div>
-          {subtitle && (
-            <p className="text-sm text-muted leading-relaxed sm:max-w-xl">{subtitle}</p>
-          )}
+        <div className="flex flex-wrap items-end gap-3">
+          <span className={`font-mono text-5xl font-semibold leading-none tracking-tight ${scoreColor(score)}`}>
+            {display}
+          </span>
+          <span className="mb-1 rounded-full border border-border bg-surface px-2 py-1 text-[11px] font-medium capitalize text-muted">
+            {verdict}
+          </span>
         </div>
+        {subtitle && <p className="mt-3 text-xs leading-5 text-muted">{subtitle}</p>}
       </div>
     )
   }
 
-  const display = score === null || score === undefined ? '—' : `${score}`
   return (
-    <div className={`rounded-lg border p-3 ${scoreBgColor(score)}`}>
-      <div className="text-[11px] font-medium uppercase tracking-wider text-faint mb-1">
+    <div className="rounded-2xl border border-border bg-surface p-4">
+      <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-faint">
         {title}
       </div>
-      <div className={`text-2xl font-mono font-semibold ${scoreColor(score)}`}>{display}</div>
-      {subtitle && <div className="mt-1 text-[10px] text-faint">{subtitle}</div>}
+      <div className={`mt-2 font-mono text-3xl font-semibold ${scoreColor(score)}`}>{display}</div>
+      {subtitle && <div className="mt-2 text-xs leading-5 text-muted">{subtitle}</div>}
     </div>
   )
 }

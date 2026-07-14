@@ -25,6 +25,13 @@ export interface ToolResult {
   findings?: ToolFinding[]
   errors?: string[]
   raw_output?: string | null
+  duration_ms?: number | null
+  execution_mode?: AnalysisMode | string | null
+  skipped_reason?: string | null
+  unavailable_reason?: string | null
+  tool_version?: string | null
+  analysis_outcome?: string | null
+  evidence_impact?: string | null
 }
 
 export interface ScoreBreakdown {
@@ -64,6 +71,7 @@ export interface EvidenceConfidence {
   summary?: string
   available_optional_tools?: string[]
   missing_optional_tools?: string[]
+  skipped_optional_tools?: string[]
 }
 
 export interface Diagnosis {
@@ -101,6 +109,20 @@ export interface Audit {
     type?: string
     value?: string
   }
+  analysis?: {
+    mode?: AnalysisMode | string
+    source_type?: SourceType | string
+    executes_repository_code?: boolean
+  }
+  dependency_environment?: {
+    dependency_files?: string[]
+    dependency_metadata_exists?: boolean
+    lock_files?: string[]
+    lock_file_exists?: boolean
+    detected_dependency_strategy?: string
+    likely_install_command?: string | null
+    note?: string
+  }
   metadata?: AuditMetadata
   static_analysis?: ToolResult[]
   test_analysis?: ToolResult[]
@@ -116,6 +138,7 @@ export interface Audit {
 
 export interface AdvisorAction {
   title?: string
+  action?: string
   priority?: string
   why_it_matters?: string
   evidence?: string | string[]
@@ -146,10 +169,12 @@ export interface AdvisorReport {
 }
 
 export type SourceType = 'local_path' | 'github_url'
+export type AnalysisMode = 'quick_safe' | 'deep_local'
 
 export interface AuditRequest {
   source_type: SourceType
   source_value: string
+  analysis_mode?: AnalysisMode | null
   profile_id: string
   ai: false
   include_markdown: boolean
@@ -157,8 +182,9 @@ export interface AuditRequest {
 
 export interface AuditResponse {
   status: string
-  source_type: string
+  source_type: SourceType
   source_value: string
+  analysis_mode: AnalysisMode
   profile_id: string
   audit: Audit
   advisor: AdvisorReport | null
@@ -174,4 +200,42 @@ export interface ProfileInfo {
 export interface HealthCheckResponse {
   status: string
   version: string
+}
+
+export interface AnalyzerCapability {
+  analyzer_id: string
+  display_name: string
+  section: string
+  category: string
+  executes_repository_code: boolean
+  supported_source_types: SourceType[]
+  supported_analysis_modes: AnalysisMode[]
+  available: boolean
+  installed_version?: string | null
+  unavailable_reason?: string | null
+  default_timeout_seconds: number
+  core: boolean
+}
+
+export interface AnalysisModeCapability {
+  id: AnalysisMode
+  display_name: string
+  description: string
+  executes_repository_code: boolean
+  supported_source_types: SourceType[]
+}
+
+export interface CapabilitiesResponse {
+  supported_analysis_modes: AnalysisModeCapability[]
+  supported_source_types: SourceType[]
+  analyzers: AnalyzerCapability[]
+  docker_isolated_execution: {
+    supported: boolean
+    reason?: string
+  }
+  remote_execution_safety_policy: string
+  setup: {
+    analysis_extra?: string
+    install_command?: string
+  }
 }

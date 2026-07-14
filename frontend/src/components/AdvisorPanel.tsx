@@ -19,7 +19,7 @@ function dedupeActions(actions: AdvisorAction[] = []): ActionGroup[] {
   const groups = new Map<string, ActionGroup>()
 
   actions.forEach((action) => {
-    const title = action.title || 'Priority'
+    const title = action.title || action.action || 'Priority'
     const key = normalizeTitle(title)
     const existing = groups.get(key)
     if (existing) {
@@ -32,39 +32,67 @@ function dedupeActions(actions: AdvisorAction[] = []): ActionGroup[] {
   return Array.from(groups.values())
 }
 
-function dedupeWhyItMatters(items: AdvisorAction[]): string[] {
+function unique(values: Array<string | undefined>): string[] {
   const seen = new Set<string>()
-  const result: string[] = []
+  return values
+    .map((value) => value?.trim())
+    .filter((value): value is string => {
+      if (!value || seen.has(value)) return false
+      seen.add(value)
+      return true
+    })
+}
 
-  items.forEach((item) => {
-    if (!item.why_it_matters) return
-    const normalized = item.why_it_matters.trim()
-    if (normalized.length === 0) return
-    if (seen.has(normalized)) return
-    seen.add(normalized)
-    result.push(item.why_it_matters)
-  })
+function EvidenceChips({ items }: { items: AdvisorAction[] }) {
+  const evidence = unique(
+    items.flatMap((item) =>
+      Array.isArray(item.evidence) ? item.evidence : [item.evidence]
+    )
+  )
+  if (evidence.length === 0) return null
 
-  return result
+  return (
+    <div className="mt-3 flex flex-wrap gap-2">
+      {evidence.slice(0, 4).map((item) => (
+        <span key={item} className="rounded-full border border-border bg-base px-2 py-1 text-[10px] font-mono text-faint">
+          {item}
+        </span>
+      ))}
+    </div>
+  )
 }
 
 function WhyItMatters({ items }: { items: AdvisorAction[] }) {
-  const uniqueWhys = dedupeWhyItMatters(items)
+  const uniqueWhys = unique(items.map((item) => item.why_it_matters))
   if (uniqueWhys.length === 0) return null
 
   return (
-    <details className="mt-1">
-      <summary className="text-[11px] text-muted cursor-pointer hover:text-primary transition-colors">
+    <details className="mt-3">
+      <summary className="inline-flex min-h-8 cursor-pointer items-center text-xs text-muted transition-colors hover:text-primary">
         Why it matters
       </summary>
-      <ul className="mt-1.5 space-y-1 pl-1">
-        {uniqueWhys.map((why, i) => (
-          <li key={i} className="text-xs text-muted">
+      <ul className="mt-2 space-y-1">
+        {uniqueWhys.map((why) => (
+          <li key={why} className="text-xs leading-5 text-muted">
             {why}
           </li>
         ))}
       </ul>
     </details>
+  )
+}
+
+function ActionBody({ group }: { group: ActionGroup }) {
+  const actionText = unique(group.items.map((item) => item.action)).find(
+    (action) => normalizeTitle(action) !== group.key
+  )
+
+  return (
+    <>
+      {actionText && <p className="mt-2 text-sm leading-6 text-muted">{actionText}</p>}
+      <EvidenceChips items={group.items} />
+      <WhyItMatters items={group.items} />
+    </>
   )
 }
 
@@ -83,79 +111,62 @@ export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
   if (!summary && fixNow.length === 0 && fixNext.length === 0) return null
 
   return (
-    <section className="rounded-lg border border-border bg-surface p-4">
-      <div className="flex items-center justify-between mb-1">
-        <h3 className="text-xs font-medium text-muted">Advisor</h3>
-        <span className="rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-[10px] font-medium text-brand">
-          {profileName}
+    <section className="rounded-2xl border border-border bg-surface p-4">
+      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-faint">
+            Remediation plan
+          </h3>
+          <p className="mt-1 text-xs text-muted">Prioritized for {profileName}</p>
+        </div>
+        <span className="self-start rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-[10px] font-medium text-brand sm:self-auto">
+          Advisor
         </span>
       </div>
 
       {summary && (
-        <div className="rounded-lg border border-border bg-surface-2 p-3 mb-4">
-          <p className="text-sm text-primary leading-relaxed">{summary}</p>
+        <div className="mb-5 rounded-xl border border-border bg-base p-3">
+          <p className="text-sm leading-6 text-primary">{summary}</p>
         </div>
       )}
 
-      {fixNow.length > 0 && (
+      {fixNow.length > 0 ? (
         <div className="mb-5">
-          <div className="flex items-center gap-2 mb-3">
-            <span className="h-2 w-2 rounded-full bg-error" />
-            <div className="text-[11px] font-medium uppercase tracking-wider text-error">
-              Fix now
-            </div>
+          <div className="mb-3 text-[11px] font-medium uppercase tracking-[0.16em] text-error">
+            Fix first
           </div>
-
-          {fixNow[0] && (
-            <div className="rounded-lg border border-error/30 bg-error/5 p-4 mb-3">
-              <div className="text-[11px] font-medium uppercase tracking-wider text-error mb-1.5">
-                Start here
-              </div>
-              <div className="text-base font-semibold text-primary mb-1">{fixNow[0].title}</div>
-              <WhyItMatters items={fixNow[0].items} />
-            </div>
-          )}
-
-          {fixNow.length > 1 && (
-            <ol className="space-y-2">
-              {fixNow.slice(1).map((group, index) => (
-                <li key={group.key} className="flex items-start gap-3 rounded-md border border-border bg-surface-2 px-3 py-2">
-                  <span className="mt-0.5 text-[10px] font-mono text-error/80 w-4 text-right">
-                    {index + 2}
+          <ol className="space-y-3">
+            {fixNow.map((group, index) => (
+              <li key={group.key} className="rounded-2xl border border-error/25 bg-error/5 p-4">
+                <div className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-error/30 bg-error/10 font-mono text-xs text-error">
+                    {index + 1}
                   </span>
-                  <div className="flex-1">
-                    <div className="text-sm font-medium text-primary">{group.title}</div>
-                    <WhyItMatters items={group.items} />
+                  <div className="min-w-0 flex-1">
+                    <div className="font-semibold text-primary">{group.title}</div>
+                    <ActionBody group={group} />
                   </div>
-                </li>
-              ))}
-            </ol>
-          )}
+                </div>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : (
+        <div className="mb-5 rounded-xl border border-health/25 bg-health/5 p-3 text-sm text-muted">
+          No immediate remediation priorities were returned.
         </div>
       )}
 
       {fixNext.length > 0 && (
         <div className="mb-5">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-attention mb-2">
+          <div className="mb-2 text-[11px] font-medium uppercase tracking-[0.16em] text-attention">
             Fix next
           </div>
-          <div className="divide-y divide-border/50">
+          <div className="divide-y divide-border/50 rounded-xl border border-border bg-base">
             {fixNext.map((group) => (
-              <div
-                key={group.key}
-                className="flex items-start gap-3 py-2 first:pt-0 last:pb-0"
-              >
-                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-attention/60" />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-primary">{group.title}</span>
-                    {group.items.length > 1 && (
-                      <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-faint">
-                        {group.items.length}
-                      </span>
-                    )}
-                  </div>
-                </div>
+              <div key={group.key} className="p-3">
+                <div className="text-sm font-medium text-primary">{group.title}</div>
+                <ActionBody group={group} />
               </div>
             ))}
           </div>
@@ -163,26 +174,30 @@ export function AdvisorPanel({ advisor, profileId }: AdvisorPanelProps) {
       )}
 
       {optional.length > 0 && (
-        <div className="mb-4">
-          <div className="text-[11px] font-medium uppercase tracking-wider text-faint mb-1.5">
-            Optional improvements
+        <div className="mb-4 rounded-xl border border-border bg-base p-3">
+          <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-faint">
+            Optional audit-environment improvements
           </div>
-          <ul className="space-y-1">
-            {optional.map((item, i) => (
-              <li key={i} className="text-xs text-muted">{item}</li>
+          <ul className="mt-2 space-y-1">
+            {optional.map((item) => (
+              <li key={item} className="text-xs leading-5 text-muted">
+                {item}
+              </li>
             ))}
           </ul>
         </div>
       )}
 
       {limitations.length > 0 && (
-        <details className="pt-3 border-t border-border">
-          <summary className="text-[11px] text-muted cursor-pointer hover:text-primary transition-colors">
-            Evidence limitations
+        <details className="border-t border-border pt-3">
+          <summary className="inline-flex min-h-8 cursor-pointer items-center text-xs text-muted transition-colors hover:text-primary">
+            Evidence limitations behind this plan
           </summary>
-          <ul className="mt-2 space-y-1 pl-1">
-            {limitations.map((item, i) => (
-              <li key={i} className="text-xs text-muted">{item}</li>
+          <ul className="mt-2 space-y-1">
+            {limitations.map((item) => (
+              <li key={item} className="text-xs leading-5 text-muted">
+                {item}
+              </li>
             ))}
           </ul>
         </details>

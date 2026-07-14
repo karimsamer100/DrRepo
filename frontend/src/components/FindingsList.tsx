@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ToolResult } from '../types/api'
 import { familyColor, getFindingFamilies, severityColor } from '../lib/score'
 
@@ -40,104 +41,138 @@ function buildCodeGroups(
   return groups
 }
 
+const FILTERS = ['all', 'critical', 'high', 'medium', 'low', 'unknown']
+
 export function FindingsList({ audit }: FindingsListProps) {
   const families = getFindingFamilies(audit).filter((f) => f.count > 0)
-  if (families.length === 0) return null
+  const [severityFilter, setSeverityFilter] = useState('all')
+  const [showCodes, setShowCodes] = useState(false)
+
+  if (families.length === 0) {
+    return (
+      <section className="rounded-2xl border border-health/25 bg-health/5 p-4">
+        <div className="text-xs font-medium uppercase tracking-[0.16em] text-health">
+          Findings
+        </div>
+        <p className="mt-2 text-sm leading-6 text-muted">
+          No analyzer findings were returned from the evidence DrRepo could verify.
+        </p>
+      </section>
+    )
+  }
+
+  const visibleFamilies =
+    severityFilter === 'all'
+      ? families
+      : families.filter((family) => family.severity.toLowerCase() === severityFilter)
+  const totalFindings = families.reduce((sum, family) => sum + family.count, 0)
 
   return (
-    <section className="animate-fade-up [animation-delay:180ms]">
-      <h3 className="text-xs font-medium text-muted mb-2">Findings</h3>
-      <div className="space-y-2">
-        {families.map((family) => {
-          const codeGroups = buildCodeGroups(family.instances)
-          const hasDetails = codeGroups.size > 1 || family.count > 1
-
-          return (
-            <div
-              key={family.family}
-              className={`rounded-lg border-l-4 bg-surface p-3 ${familyColor(family.family)}`}
-            >
-              <div className="flex flex-wrap items-center gap-2 mb-1">
-                <span
-                  className={`rounded border px-1.5 py-0.5 text-[10px] font-medium uppercase ${severityColor(
-                    family.severity
-                  )}`}
-                >
-                  {family.severity}
-                </span>
-                <span className="text-sm font-medium text-primary">{family.family}</span>
-                <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] text-faint">
-                  {family.count} {family.count === 1 ? 'finding' : 'findings'}
-                </span>
-              </div>
-
-              {!hasDetails && family.instances[0].file_path && (
-                <div className="font-mono text-[11px] text-faint">
-                  {family.instances[0].file_path}
-                  {family.instances[0].line ? `:${family.instances[0].line}` : ''}
-                </div>
-              )}
-
-              {hasDetails && (
-                <details className="mt-2">
-                  <summary className="text-[11px] text-muted cursor-pointer hover:text-primary transition-colors focus:outline-none">
-                    Details
-                  </summary>
-                  {(() => {
-                    const msgMap = new Map<string, { message: string; codes: string[]; totalCount: number; allLocations: string[] }>()
-                    Array.from(codeGroups.values()).forEach((cg) => {
-                      const msgKey = cg.message.trim().toLowerCase()
-                      const existing = msgMap.get(msgKey)
-                      if (existing) {
-                        existing.totalCount += cg.count
-                        if (cg.code) existing.codes.push(cg.code)
-                        existing.allLocations.push(...cg.locations)
-                      } else {
-                        msgMap.set(msgKey, {
-                          message: cg.message,
-                          codes: cg.code ? [cg.code] : [],
-                          totalCount: cg.count,
-                          allLocations: [...cg.locations],
-                        })
-                      }
-                    })
-                    const messageGroups = Array.from(msgMap.values())
-                    const allLocations = [...new Set(messageGroups.flatMap(g => g.allLocations))]
-                    const locPreview = allLocations.slice(0, 3)
-                    const moreCount = allLocations.length > 3 ? allLocations.length - 3 : 0
-
-                    return (
-                      <div className="mt-2 space-y-2 pl-1">
-                        {messageGroups.map((mg) => (
-                          <div key={mg.message}>
-                            <div className="flex items-center gap-2">
-                              <span className="text-primary text-xs">{mg.message}</span>
-                              <span className="rounded-full bg-surface-2 px-1.5 py-0.5 text-[10px] font-mono text-faint">
-                                {mg.totalCount} {mg.totalCount === 1 ? 'check' : 'checks'}
-                              </span>
-                            </div>
-                            {mg.codes.length > 0 && (
-                              <span className="block mt-0.5 font-mono text-[10px] text-faint">
-                                {mg.codes.join(', ')}
-                              </span>
-                            )}
-                          </div>
-                        ))}
-                        {locPreview.length > 0 && (
-                          <span className="block font-mono text-[10px] text-faint">
-                            {locPreview.join(', ')}
-                            {moreCount > 0 && ` +${moreCount} more`}
-                          </span>
-                        )}
-                      </div>
-                    )
-                  })()}
-                </details>
-              )}
-            </div>
-          )
-        })}
+    <section className="rounded-2xl border border-border bg-surface p-4 animate-fade-up [animation-delay:180ms]">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-faint">
+            Findings
+          </h3>
+          <p className="mt-1 text-sm text-muted">
+            {totalFindings} grouped {totalFindings === 1 ? 'finding' : 'findings'} across {families.length} area{families.length === 1 ? '' : 's'}.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => setShowCodes((value) => !value)}
+          className="inline-flex min-h-9 items-center justify-center rounded-xl border border-border px-3 text-xs font-medium text-muted transition-colors hover:border-brand/30 hover:text-brand"
+        >
+          {showCodes ? 'Hide codes' : 'Show codes'}
+        </button>
       </div>
+
+      <div className="mb-4 flex flex-wrap gap-2" aria-label="Filter findings by severity">
+        {FILTERS.map((filter) => (
+          <button
+            key={filter}
+            type="button"
+            aria-pressed={severityFilter === filter}
+            onClick={() => setSeverityFilter(filter)}
+            className={`min-h-8 rounded-full border px-3 text-[11px] font-medium capitalize transition-colors ${
+              severityFilter === filter
+                ? 'border-brand/30 bg-brand/10 text-brand'
+                : 'border-border bg-base text-faint hover:text-primary'
+            }`}
+          >
+            {filter}
+          </button>
+        ))}
+      </div>
+
+      {visibleFamilies.length === 0 ? (
+        <p className="rounded-xl border border-border bg-base p-3 text-sm text-muted">
+          No findings match this severity filter.
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {visibleFamilies.map((family) => {
+            const codeGroups = buildCodeGroups(family.instances)
+
+            return (
+              <article
+                key={family.family}
+                className={`rounded-2xl border-l-4 p-4 ${familyColor(family.family)}`}
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={`rounded border px-2 py-1 text-[10px] font-medium uppercase ${severityColor(
+                      family.severity
+                    )}`}
+                  >
+                    {family.severity}
+                  </span>
+                  <h4 className="text-sm font-semibold text-primary">{family.family}</h4>
+                  <span className="rounded-full bg-surface-2 px-2 py-1 text-[10px] text-faint">
+                    {family.count} {family.count === 1 ? 'finding' : 'findings'}
+                  </span>
+                </div>
+
+                <details className="mt-3">
+                  <summary className="inline-flex min-h-9 cursor-pointer items-center rounded-lg text-xs text-muted transition-colors hover:text-primary">
+                    Review grouped evidence
+                  </summary>
+                  <div className="mt-2 space-y-3">
+                    {Array.from(codeGroups.values()).map((group) => {
+                      const locPreview = [...new Set(group.locations)].slice(0, 4)
+                      const moreCount = group.locations.length > 4 ? group.locations.length - 4 : 0
+
+                      return (
+                        <div key={`${group.code || group.message}`} className="rounded-xl border border-border bg-base p-3">
+                          <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                            <p className="min-w-0 break-words text-sm leading-6 text-primary">
+                              {group.message}
+                            </p>
+                            <span className="shrink-0 rounded-full bg-surface-2 px-2 py-1 text-[10px] font-mono text-faint">
+                              {group.count}x
+                            </span>
+                          </div>
+                          {showCodes && group.code && (
+                            <div className="mt-2 break-all font-mono text-[10px] text-faint">
+                              {group.code}
+                            </div>
+                          )}
+                          {locPreview.length > 0 && (
+                            <div className="mt-2 break-all font-mono text-[10px] leading-5 text-faint">
+                              {locPreview.join(', ')}
+                              {moreCount > 0 && ` +${moreCount} more`}
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </details>
+              </article>
+            )
+          })}
+        </div>
+      )}
     </section>
   )
 }

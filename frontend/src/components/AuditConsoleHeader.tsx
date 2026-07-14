@@ -19,9 +19,11 @@ export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
   }, [])
 
   return (
-    <header className="h-12 border-b border-border bg-panel flex items-center justify-between px-4 lg:px-6">
+    <header className="flex min-h-14 items-center justify-between border-b border-border bg-panel px-4 lg:px-6">
       <div className="flex items-center gap-3">
         <span
+          role="status"
+          aria-live="polite"
           className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-medium ${
             health === 'ok'
               ? 'border-brand/30 bg-brand/10 text-brand'
@@ -46,7 +48,7 @@ export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
         <button
           type="button"
           onClick={onNew}
-          className="rounded-md border border-border px-3 py-1.5 text-xs font-medium text-faint hover:border-brand/30 hover:text-brand hover:bg-brand/5 transition-colors duration-150 ease-out-strong"
+          className="inline-flex min-h-10 items-center rounded-xl border border-border px-3 text-xs font-medium text-faint transition-colors duration-150 ease-out-strong hover:border-brand/30 hover:bg-brand/5 hover:text-brand"
         >
           New diagnostic
         </button>

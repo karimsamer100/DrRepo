@@ -1,4 +1,4 @@
-import type { AuditRequest, AuditResponse, HealthCheckResponse, ProfileInfo } from '../types/api'
+import type { AuditRequest, AuditResponse, CapabilitiesResponse, HealthCheckResponse, ProfileInfo } from '../types/api'
 
 const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000'
 
@@ -29,6 +29,10 @@ export function listProfiles(): Promise<ProfileInfo[]> {
   return apiFetch<{ profiles: ProfileInfo[] }>('/api/profiles').then(
     (res) => res.profiles
   )
+}
+
+export function getCapabilities(): Promise<CapabilitiesResponse> {
+  return apiFetch<CapabilitiesResponse>('/api/capabilities')
 }
 
 export function runAudit(request: AuditRequest): Promise<AuditResponse> {
