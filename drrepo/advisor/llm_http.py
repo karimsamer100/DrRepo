@@ -7,7 +7,7 @@ from urllib import error, request
 
 from drrepo.config import load_repo_dotenv
 
-from .llm_contract import get_llm_advisor_action_schema, validate_llm_advisor_response
+from .llm_contract import get_llm_advisor_output_schema, validate_llm_advisor_response
 from .llm_providers import LLMProviderResult
 
 load_repo_dotenv()
@@ -54,16 +54,7 @@ def _build_request_payload(
                 "type": "text",
                 "mime_type": "application/json",
                 "schema": {
-                    "type": "object",
-                    "properties": {
-                        "summary": {"type": "string"},
-                        "profile_context": {"type": "string"},
-                        "top_priorities": {"type": "array", "items": get_llm_advisor_action_schema()},
-                        "lower_priority_items": {"type": "array", "items": get_llm_advisor_action_schema()},
-                        "limitations": {"type": "array", "items": {"type": "string"}},
-                        "next_steps": {"type": "array", "items": {"type": "string"}},
-                    },
-                    "required": list(_LLM_ADVISOR_REQUIRED_FIELDS),
+                    **get_llm_advisor_output_schema(),
                 },
             },
         }
@@ -346,6 +337,77 @@ def _parse_json_text(text: str) -> object | None:
     return None
 
 
+def _safe_response_shape(value: object) -> dict[str, object]:
+    diagnostics: dict[str, object] = {"response_type": type(value).__name__}
+    if isinstance(value, dict):
+        diagnostics["top_level_keys"] = sorted(str(key) for key in value.keys())[:20]
+    elif isinstance(value, list):
+        diagnostics["list_length"] = len(value)
+    elif isinstance(value, str):
+        diagnostics["response_length"] = len(value)
+        stripped = value.strip()
+        diagnostics["markdown_fence_present"] = stripped.startswith("```") and stripped.endswith("```")
+    return diagnostics
+
+
+def _strip_json_markdown_fence(text: str) -> tuple[str, bool]:
+    stripped = text.strip()
+    if not stripped.startswith("```") or not stripped.endswith("```"):
+        return stripped, False
+
+    lines = stripped.splitlines()
+    if len(lines) < 3 or not lines[0].startswith("```") or lines[-1].strip() != "```":
+        return stripped, False
+    fence_language = lines[0][3:].strip().lower()
+    if fence_language not in {"", "json"}:
+        return stripped, False
+    return "\n".join(lines[1:-1]).strip(), True
+
+
+def _parse_provider_json_candidate(candidate: str) -> tuple[object | None, dict[str, object], str | None]:
+    diagnostics: dict[str, object] = {
+        "candidate_type": "str",
+        "response_length": len(candidate),
+        "markdown_fence_present": False,
+        "nested_serialized_json": False,
+    }
+    normalized, had_fence = _strip_json_markdown_fence(candidate)
+    diagnostics["markdown_fence_present"] = had_fence
+
+    try:
+        parsed: object = json.loads(normalized)
+    except json.JSONDecodeError as exc:
+        diagnostics["json_error"] = exc.msg
+        return None, diagnostics, "Invalid JSON"
+
+    if isinstance(parsed, str):
+        nested = parsed.strip()
+        diagnostics["nested_serialized_json"] = True
+        try:
+            parsed = json.loads(nested)
+        except json.JSONDecodeError as exc:
+            diagnostics["json_error"] = exc.msg
+            return None, diagnostics, "Nested JSON string was malformed"
+
+    if isinstance(parsed, dict):
+        diagnostics["parsed_top_level_keys"] = sorted(str(key) for key in parsed.keys())[:20]
+    else:
+        diagnostics["parsed_type"] = type(parsed).__name__
+    return parsed, diagnostics, None
+
+
+def _schema_diagnostics(parsed: object, errors: list[str]) -> dict[str, object]:
+    diagnostics: dict[str, object] = {"classification": "schema_mismatch"}
+    if isinstance(parsed, dict):
+        keys = sorted(str(key) for key in parsed.keys())
+        diagnostics["parsed_top_level_keys"] = keys[:20]
+        diagnostics["missing_required_fields"] = [
+            field for field in _LLM_ADVISOR_REQUIRED_FIELDS if field not in parsed
+        ]
+    diagnostics["validation_errors"] = errors[:20]
+    return diagnostics
+
+
 def _extract_gemini_candidate(raw_response: object) -> tuple[object | None, bool]:
     if _has_advisor_response_fields(raw_response):
         return raw_response, True
@@ -433,79 +495,61 @@ def parse_llm_json_response(
             safe_message=safe_message,
             endpoint_family=endpoint_family,
             auth_method=auth_method,
+            diagnostics={
+                "classification": "assistant_text_missing" if provider_id == "gemini" else "response_body_unavailable",
+                **_safe_response_shape(raw_response),
+            },
         )
 
     if isinstance(candidate, str):
-        if provider_id == "gemini":
-            try:
-                parsed = json.loads(candidate)
-            except json.JSONDecodeError as exc:
-                return LLMProviderResult(
-                    provider_id=provider_id,
-                    status="invalid_response",
-                    error=str(exc),
-                    error_category="invalid_response",
-                    safe_message=str(exc),
-                    endpoint_family=endpoint_family,
-                    auth_method=auth_method,
-                )
-        elif candidate.startswith("{") or candidate.startswith("["):
-            try:
-                parsed = json.loads(candidate)
-            except json.JSONDecodeError as exc:
-                return LLMProviderResult(
-                    provider_id=provider_id,
-                    status="invalid_response",
-                    error=str(exc),
-                    error_category="invalid_response",
-                    safe_message=str(exc),
-                    endpoint_family=endpoint_family,
-                    auth_method=auth_method,
-                )
-        else:
+        parsed, parse_diagnostics, parse_error = _parse_provider_json_candidate(candidate)
+        if parse_error:
             return LLMProviderResult(
                 provider_id=provider_id,
                 status="invalid_response",
-                error="Unsupported response payload",
+                error=parse_error,
                 error_category="invalid_response",
-                safe_message="Unsupported response payload",
+                safe_message=parse_error,
                 endpoint_family=endpoint_family,
                 auth_method=auth_method,
+                diagnostics={"classification": "invalid_json", **parse_diagnostics},
             )
     else:
         parsed = candidate
+        parse_diagnostics = _safe_response_shape(candidate)
 
     if isinstance(parsed, dict):
         errors = validate_llm_advisor_response(parsed)
         if errors:
+            diagnostics = {**parse_diagnostics, **_schema_diagnostics(parsed, errors)}
             return LLMProviderResult(
                 provider_id=provider_id,
                 status="invalid_response",
                 error="; ".join(errors),
-                raw_response=raw_response,
                 error_category="invalid_response",
                 safe_message="; ".join(errors),
                 endpoint_family=endpoint_family,
                 auth_method=auth_method,
+                diagnostics=diagnostics,
             )
         return LLMProviderResult(
             provider_id=provider_id,
             status="ok",
             response=parsed,
-            raw_response=raw_response,
             endpoint_family=endpoint_family,
             auth_method=auth_method,
+            diagnostics={**parse_diagnostics, "classification": "schema_valid"},
         )
 
     return LLMProviderResult(
         provider_id=provider_id,
         status="invalid_response",
         error="Parsed payload is not a JSON object",
-        raw_response=raw_response,
         error_category="invalid_response",
         safe_message="Parsed payload is not a JSON object",
         endpoint_family=endpoint_family,
         auth_method=auth_method,
+        diagnostics={**parse_diagnostics, "classification": "schema_mismatch"},
     )
 
 

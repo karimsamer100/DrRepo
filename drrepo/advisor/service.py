@@ -48,12 +48,13 @@ def _classify_ai_fallback_status(attempts: list[dict[str, Any]]) -> tuple[str, s
             continue
         status = attempt.get("status", "error")
         error = attempt.get("error") or ""
+        diagnostics = attempt.get("diagnostics") if isinstance(attempt.get("diagnostics"), dict) else {}
         if status == "missing_api_key":
             return "provider_not_configured", f"Provider {provider_id} is not configured."
-        if status == "invalid_json" or "invalid json" in error.lower() or "malformed" in error.lower():
+        if diagnostics.get("classification") == "invalid_json" or status == "invalid_json" or "invalid json" in error.lower() or "malformed" in error.lower():
             return "invalid_json", f"Provider {provider_id} returned malformed JSON."
         if status == "invalid_response":
-            return "schema_invalid", f"Provider {provider_id} returned an invalid or schema-mismatched response."
+            return "schema_invalid", f"Provider {provider_id} response was not accepted because it did not match the advisor schema."
         if "timeout" in error.lower() or status == "timeout":
             return "timeout", f"Provider {provider_id} timed out."
         if "network" in error.lower():
@@ -183,8 +184,8 @@ def build_advisor_for_audit(
             model = "unknown"
         ai_result.update(
             {
-                "status": "ok",
-                "source": "ai",
+                "status": "completed",
+                "source": "llm",
                 "provider": provider_id,
                 "model": model,
                 "advisor_response": selected_response,

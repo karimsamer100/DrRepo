@@ -182,8 +182,8 @@ def test_prioritized_action_plan_escapes_pipes():
 def _ai_advisor() -> dict[str, object]:
     return {
         "requested": True,
-        "status": "ok",
-        "source": "ai",
+        "status": "completed",
+        "source": "llm",
         "provider": "gemini",
         "model": "gemini-2.5-flash",
         "advisor_response": {
@@ -219,8 +219,8 @@ def test_markdown_includes_ai_advisor_guidance_when_requested():
     audit = {"status": "ok", "path": "repo", "metadata": {}}
     md = render_markdown_report(audit, ai_advisor=_ai_advisor())
     assert "## AI Advisor Guidance" in md
-    assert "**Source**: ai" in md
-    assert "**Status**: ok" in md
+    assert "**Source**: llm" in md
+    assert "**Status**: completed" in md
     assert "**Provider**: gemini" in md
     assert "**Grounding**: valid" in md
     assert "Fix-first action" in md

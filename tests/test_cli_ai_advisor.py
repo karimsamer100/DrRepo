@@ -65,7 +65,7 @@ def _fake_advisor_report(profile_display_name: str = "Student Portfolio") -> dic
 
 def _fake_ai_package(
     *,
-    source: str = "ai",
+    source: str = "llm",
     provider: str = "gemini",
     used_fallback: bool = False,
     grounding_valid: bool = True,
@@ -76,7 +76,7 @@ def _fake_ai_package(
         "advisor_report": _fake_advisor_report(),
         "ai": {
             "requested": True,
-            "status": "ok" if source == "ai" else "fallback",
+            "status": "completed" if source in {"llm", "ai"} else "fallback",
             "source": source,
             "provider": provider,
             "model": "gemini-2.5-flash" if provider == "gemini" else "deterministic-advisor",
@@ -135,7 +135,7 @@ def test_ai_without_profile_uses_student_portfolio(monkeypatch, tmp_path: Path):
     assert result.exit_code == 0
     assert captured["profile_id"] == "student_portfolio"
     assert captured["ai"] is True
-    assert "Advisor mode: AI" in result.output
+    assert "Advisor mode: LLM" in result.output
     assert "Selected provider: gemini" in result.output
 
 
@@ -158,7 +158,7 @@ def test_ai_summary_includes_selected_provider_metadata(monkeypatch, tmp_path: P
     result = runner.invoke(app, ["audit", str(tmp_path), "--format", "summary", "--profile", "student_portfolio", "--ai"])
 
     assert result.exit_code == 0
-    assert "Advisor mode: AI" in result.output
+    assert "Advisor mode: LLM" in result.output
     assert "Selected provider: gemini" in result.output
     assert "Fallback used: No" in result.output
 

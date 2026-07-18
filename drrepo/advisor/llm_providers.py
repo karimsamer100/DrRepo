@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 from drrepo.config import load_repo_dotenv
 
@@ -30,6 +31,7 @@ class LLMProviderResult:
     safe_message: str | None = None
     endpoint_family: str | None = None
     auth_method: str | None = None
+    diagnostics: dict[str, Any] | None = None
 
 
 def get_default_provider_order() -> list[str]:

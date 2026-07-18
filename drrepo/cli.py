@@ -92,11 +92,11 @@ def _format_ai_summary_block(ai_advisor: dict[str, object]) -> str:
     model = ai_advisor.get("model") or "deterministic-advisor"
     fallback = ai_advisor.get("fallback_reason")
     grounding = ai_advisor.get("grounding_result") or {}
-    used_fallback = source != "ai" or fallback is not None
+    used_fallback = source not in {"ai", "llm"} or fallback is not None
 
     lines = ["## AI Advisor", "", f"Advisor mode: {source.upper()}", f"Status: {status}"]
     lines.append(f"Selected provider: {provider}")
-    if source == "ai":
+    if source in {"ai", "llm"}:
         lines.append(f"Model: {model}")
     lines.append(f"Fallback used: {'Yes' if used_fallback else 'No'}")
     if grounding:

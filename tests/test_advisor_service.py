@@ -2,7 +2,8 @@ from copy import deepcopy
 
 import pytest
 
-from drrepo.advisor.service import ADVISOR_SERVICE_VERSION, build_advisor_result
+from drrepo.advisor.llm_providers import LLMProviderResult
+from drrepo.advisor.service import ADVISOR_SERVICE_VERSION, build_advisor_for_audit, build_advisor_result
 
 
 def _sample_audit() -> dict[str, object]:
@@ -27,6 +28,56 @@ def _sample_audit() -> dict[str, object]:
                 "tool": "readme",
             }
         ],
+    }
+
+
+def _grounded_audit() -> dict[str, object]:
+    return {
+        "path": "repo",
+        "scoring": {"overall_score": 78, "repository_health_score": 74, "categories": {}},
+        "diagnosis": {
+            "repository_health": {"label": "needs_attention", "score": 74, "summary": "Needs work."},
+            "hard_flags": [],
+            "limitations": [],
+        },
+        "project_understanding": {
+            "project_identity": {"project_type": "web_service", "frameworks": ["fastapi"], "interfaces": ["rest_api"]},
+            "entry_points": [{"path": "src/main.py", "symbol": "main"}],
+        },
+        "static_analysis": [
+            {
+                "tool": "ruff",
+                "status": "completed",
+                "findings": [{"code": "RUF001", "message": "lint", "file_path": "src/main.py", "line": 12, "severity": "medium"}],
+            }
+        ],
+        "test_analysis": [
+            {"tool": "pytest", "status": "completed", "summary": {"passed": 1, "failed": 0}, "findings": []},
+            {"tool": "coverage", "status": "completed", "summary": {"coverage_percent": 65}, "findings": []},
+        ],
+        "repository_analysis": [],
+        "remediation_suggestions": [{"title": "Fix lint", "message": "lint", "severity": "medium", "code": "RUF001", "tool": "ruff"}],
+        "recommendations_v2": [{"id": "FIX-LINT", "title": "Fix lint", "priority": 1}],
+        "devops_readiness": {"blockers": []},
+    }
+
+
+def _provider_response(summary: str = "The overall score is 78.") -> dict[str, object]:
+    return {
+        "summary": summary,
+        "profile_context": "FastAPI web service.",
+        "top_priorities": [
+            {
+                "title": "Fix lint",
+                "why_it_matters": "RUF001 is present.",
+                "evidence": ["RUF001", "src/main.py:12"],
+                "suggested_fix": "Address the lint finding.",
+                "priority": "high",
+            }
+        ],
+        "lower_priority_items": [],
+        "limitations": [],
+        "next_steps": ["Run pytest."],
     }
 
 
@@ -88,3 +139,30 @@ def test_build_advisor_result_is_deterministic_for_same_input():
     first = build_advisor_result(audit, profile_id="student_portfolio")
     second = build_advisor_result(audit, profile_id="student_portfolio")
     assert first == second
+
+
+def test_build_advisor_for_audit_accepts_schema_valid_grounded_provider_output():
+    result = build_advisor_for_audit(
+        _grounded_audit(),
+        ai=True,
+        providers=[lambda prompt_bundle, fallback_response=None: LLMProviderResult(provider_id="gemini", status="ok", response=_provider_response())],
+    )
+
+    ai = result["ai"]
+    assert ai["status"] == "completed"
+    assert ai["source"] == "llm"
+    assert ai["provider"] == "gemini"
+    assert ai["grounding_result"]["valid"] is True
+
+
+def test_build_advisor_for_audit_rejects_schema_valid_ungrounded_provider_output():
+    result = build_advisor_for_audit(
+        _grounded_audit(),
+        ai=True,
+        providers=[lambda prompt_bundle, fallback_response=None: LLMProviderResult(provider_id="gemini", status="ok", response=_provider_response("The overall score is 99."))],
+    )
+
+    ai = result["ai"]
+    assert ai["status"] == "grounding_rejected"
+    assert ai["source"] == "deterministic"
+    assert ai["grounding_result"]["valid"] is False

@@ -53,6 +53,7 @@ def test_frontend_ai_advisor_types_exist():
     assert "export interface AIAdvisorResult" in types
     assert "ai: boolean" in types
     assert "ai_advisor: AIAdvisorResult | null" in types
+    assert "'llm' | 'ai' | 'deterministic'" in types
 
 
 def test_frontend_audit_input_card_has_ai_toggle_and_disclosure():

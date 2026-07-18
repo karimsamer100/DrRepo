@@ -55,7 +55,14 @@ def route_llm_advisor_response(
             result = LLMProviderResult(provider_id="unknown", status="error", error=str(exc))
 
         provider_id = getattr(result, "provider_id", "unknown")
-        attempts.append({"provider_id": provider_id, "status": result.status, "error": result.error})
+        attempt = {"provider_id": provider_id, "status": result.status, "error": result.error}
+        if result.safe_message:
+            attempt["safe_message"] = result.safe_message
+        if result.error_category:
+            attempt["error_category"] = result.error_category
+        if result.diagnostics:
+            attempt["diagnostics"] = result.diagnostics
+        attempts.append(attempt)
 
         if result.status == "ok" and isinstance(result.response, dict):
             errors = validate_llm_advisor_response(result.response)

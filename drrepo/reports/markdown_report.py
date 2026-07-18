@@ -90,7 +90,7 @@ def _format_ai_advisor_section(ai_advisor: Dict[str, Any] | None) -> str:
     lines.append("")
     lines.append(f"- **Source**: {source}")
     lines.append(f"- **Status**: {status}")
-    if source == "ai":
+    if source in {"ai", "llm"}:
         lines.append(f"- **Provider**: {provider}")
         lines.append(f"- **Model**: {model}")
     if grounding:

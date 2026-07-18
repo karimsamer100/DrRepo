@@ -330,7 +330,7 @@ export interface GroundingResult {
 export interface AIAdvisorResult {
   requested: boolean
   status: string
-  source: 'ai' | 'deterministic'
+  source: 'llm' | 'ai' | 'deterministic'
   provider?: string | null
   model?: string | null
   advisor_response?: AdvisorResponse

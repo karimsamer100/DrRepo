@@ -80,6 +80,55 @@ def test_gemini_output_text_parses_to_ok():
     assert result.response is not None
 
 
+def test_gemini_output_text_accepts_markdown_json_fence():
+    response = """```json
+{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}
+```"""
+    result = parse_llm_json_response("gemini", {"output_text": response})
+
+    assert result.status == "ok"
+    assert result.response is not None
+    assert result.diagnostics["markdown_fence_present"] is True
+
+
+def test_gemini_output_text_accepts_harmless_whitespace():
+    response = '  \n\t{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}\n  '
+    result = parse_llm_json_response("gemini", {"output_text": response})
+
+    assert result.status == "ok"
+    assert result.response is not None
+
+
+def test_gemini_output_text_accepts_nested_serialized_json_once():
+    nested = '"{\\"summary\\": \\"ok\\", \\"profile_context\\": \\"ctx\\", \\"top_priorities\\": [], \\"lower_priority_items\\": [], \\"limitations\\": [], \\"next_steps\\": []}"'
+    result = parse_llm_json_response("gemini", {"output_text": nested})
+
+    assert result.status == "ok"
+    assert result.response is not None
+    assert result.diagnostics["nested_serialized_json"] is True
+
+
+def test_gemini_output_text_rejects_extra_explanatory_prose():
+    response = 'Here is the JSON:\n{"summary": "ok", "profile_context": "ctx", "top_priorities": [], "lower_priority_items": [], "limitations": [], "next_steps": []}'
+    result = parse_llm_json_response("gemini", {"output_text": response})
+
+    assert result.status == "invalid_response"
+    assert result.diagnostics["classification"] == "invalid_json"
+
+
+def test_gemini_schema_diagnostics_are_safe_and_bounded():
+    result = parse_llm_json_response(
+        "gemini",
+        {"output_text": '{"summary": "ok", "profile_context": "ctx", "top_priorities": "bad", "lower_priority_items": [], "limitations": [], "next_steps": []}'},
+    )
+
+    assert result.status == "invalid_response"
+    assert result.diagnostics["classification"] == "schema_mismatch"
+    assert "top_priorities must be a list" in result.safe_message
+    assert "parsed_top_level_keys" in result.diagnostics
+    assert result.raw_response is None
+
+
 def test_gemini_response_missing_action_item_fields_returns_clear_invalid_response():
     result = parse_llm_json_response(
         "gemini",
@@ -118,6 +167,7 @@ def test_fake_openai_compatible_transport_returns_ok_for_openrouter():
 def test_invalid_json_returns_invalid_response():
     result = parse_llm_json_response("gemini", '{bad json')
     assert result.status == "invalid_response"
+    assert result.diagnostics["classification"] == "invalid_json"
 
 
 def test_structurally_invalid_advisor_response_returns_invalid_response():

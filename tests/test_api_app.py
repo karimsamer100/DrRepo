@@ -554,8 +554,8 @@ def test_api_routes_not_swallowed_by_fallback(tmp_path: Path, monkeypatch):
 
 
 def _fake_advisor_package(
-    status: str = "ok",
-    source: str = "ai",
+    status: str = "completed",
+    source: str = "llm",
     provider: str = "gemini",
     grounding_valid: bool = True,
     fallback_reason: str | None = None,
@@ -647,7 +647,7 @@ def _grounded_provider_response() -> dict[str, object]:
 def test_audit_ai_true_valid_grounded_response(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(
         "drrepo.api.service.build_advisor_for_audit",
-        lambda *args, **kwargs: _fake_advisor_package(status="ok", source="ai", provider="gemini"),
+        lambda *args, **kwargs: _fake_advisor_package(status="completed", source="llm", provider="gemini"),
     )
     response = client.post(
         "/api/audits",
@@ -657,8 +657,8 @@ def test_audit_ai_true_valid_grounded_response(monkeypatch, tmp_path: Path):
     data = response.json()
     ai = data.get("ai_advisor") or {}
     assert ai.get("requested") is True
-    assert ai.get("source") == "ai"
-    assert ai.get("status") == "ok"
+    assert ai.get("source") == "llm"
+    assert ai.get("status") == "completed"
     assert ai.get("provider") == "gemini"
     assert ai.get("grounding_result", {}).get("valid") is True
     assert data.get("audit") is not None
@@ -780,7 +780,7 @@ def test_audit_builder_called_once_for_ai_success(monkeypatch, tmp_path: Path):
     )
     assert response.status_code == 200
     assert len(calls) == 1
-    assert response.json()["ai_advisor"]["status"] == "ok"
+    assert response.json()["ai_advisor"]["status"] == "completed"
 
 
 def test_audit_builder_called_once_for_ai_timeout_malformed_and_grounding_rejection(monkeypatch, tmp_path: Path):

@@ -194,8 +194,9 @@ function AIAdvisorSection({ aiAdvisor, profileId }: { aiAdvisor: AIAdvisorResult
   const limitations = response?.limitations || []
   const nextSteps = response?.next_steps || []
 
-  const sourceLabel = source === 'ai' ? 'AI-generated' : 'Deterministic fallback'
-  const sourceColor = source === 'ai' ? 'border-brand/30 bg-brand/10 text-brand' : 'border-attention/30 bg-attention/10 text-attention'
+  const isLlm = source === 'llm' || source === 'ai'
+  const sourceLabel = isLlm ? 'AI-generated' : 'Deterministic fallback'
+  const sourceColor = isLlm ? 'border-brand/30 bg-brand/10 text-brand' : 'border-attention/30 bg-attention/10 text-attention'
 
   return (
     <section className="mt-6 rounded-2xl border border-border bg-surface p-4">
@@ -213,10 +214,10 @@ function AIAdvisorSection({ aiAdvisor, profileId }: { aiAdvisor: AIAdvisorResult
 
       <div className="mb-4 flex flex-wrap gap-2 text-xs text-muted">
         <span className="rounded-lg border border-border bg-base px-2 py-1">Status: {status}</span>
-        {source === 'ai' && provider && (
+        {isLlm && provider && (
           <span className="rounded-lg border border-border bg-base px-2 py-1">Provider: {provider}</span>
         )}
-        {source === 'ai' && model && (
+        {isLlm && model && (
           <span className="rounded-lg border border-border bg-base px-2 py-1">Model: {model}</span>
         )}
         {grounding && (
@@ -288,7 +289,9 @@ function AIAdvisorSection({ aiAdvisor, profileId }: { aiAdvisor: AIAdvisorResult
         </div>
       ) : (
         <div className="mb-5 rounded-xl border border-health/25 bg-health/5 p-3 text-sm text-muted">
-          No immediate AI remediation priorities were returned.
+          {isLlm
+            ? 'No immediate AI remediation priorities were returned.'
+            : 'No immediate deterministic remediation priorities were returned.'}
         </div>
       )}
 
