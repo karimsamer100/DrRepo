@@ -76,6 +76,13 @@ def test_capabilities_endpoint():
     assert analyzers["container_config"]["section"] == "readiness"
     assert ".[analysis]" in data["setup"]["install_command"]
     assert "supported" in data["docker_isolated_execution"]
+    ai_cap = data.get("ai_advisor")
+    assert ai_cap is not None
+    assert ai_cap["supported"] is True
+    assert ai_cap["deterministic_fallback_available"] is True
+    assert ai_cap["explicit_opt_in_required"] is True
+    assert "privacy_note" in ai_cap
+    assert "provider_routes" in ai_cap
 
 
 def test_audit_local_path_success():
@@ -283,7 +290,9 @@ def test_audit_github_url_clone_failure(monkeypatch, tmp_path: Path):
     assert "clone" in detail or "not found" in detail
 
 
-def test_audit_ai_not_supported(tmp_path: Path):
+def test_audit_ai_supported_and_returns_typed_fallback_when_unconfigured(monkeypatch, tmp_path: Path):
+    for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY", "GROQ_API_KEY", "CEREBRAS_API_KEY", "OPENROUTER_API_KEY"):
+        monkeypatch.delenv(key, raising=False)
     response = client.post(
         "/api/audits",
         json={
@@ -292,9 +301,37 @@ def test_audit_ai_not_supported(tmp_path: Path):
             "ai": True,
         },
     )
-    assert response.status_code == 400
-    detail = response.json()["detail"].lower()
-    assert "ai" in detail or "not supported" in detail
+    assert response.status_code == 200
+    data = response.json()
+    ai_advisor = data.get("ai_advisor") or {}
+    assert ai_advisor.get("requested") is True
+    assert ai_advisor.get("source") == "deterministic"
+    assert ai_advisor.get("status") in {
+        "provider_not_configured",
+        "provider_unavailable",
+        "fallback",
+    }
+    assert ai_advisor.get("advisor_response") is not None
+    # Core audit is still present and successful
+    assert data.get("status") == "ok"
+    assert data.get("audit") is not None
+
+
+def test_audit_ai_false_regression(tmp_path: Path):
+    response = client.post(
+        "/api/audits",
+        json={
+            "source_type": "local_path",
+            "source_value": str(tmp_path),
+            "ai": False,
+        },
+    )
+    assert response.status_code == 200
+    data = response.json()
+    ai_advisor = data.get("ai_advisor") or {}
+    assert ai_advisor.get("requested") is False
+    assert ai_advisor.get("source") == "deterministic"
+    assert ai_advisor.get("status") == "not_requested"
 
 
 def test_audit_include_markdown_success(tmp_path: Path):
@@ -514,3 +551,289 @@ def test_api_routes_not_swallowed_by_fallback(tmp_path: Path, monkeypatch):
     )
     assert audit.status_code == 200
     assert "audit" in audit.json()
+
+
+def _fake_advisor_package(
+    status: str = "ok",
+    source: str = "ai",
+    provider: str = "gemini",
+    grounding_valid: bool = True,
+    fallback_reason: str | None = None,
+) -> dict[str, object]:
+    return {
+        "advisor_service_version": "v1",
+        "profile_id": "student_portfolio",
+        "advisor_report": {"advisor_response": {"summary": "deterministic"}},
+        "ai": {
+            "requested": True,
+            "status": status,
+            "source": source,
+            "provider": provider,
+            "model": "gemini-2.5-flash" if provider == "gemini" else "deterministic-advisor",
+            "advisor_response": {"summary": "AI summary"},
+            "grounding_result": {
+                "valid": grounding_valid,
+                "checked_claims": 2,
+                "validated_references": 2,
+                "violations": [] if grounding_valid else ["unknown evidence reference: x"],
+            },
+            "fallback_reason": fallback_reason,
+            "duration_ms": 100,
+        },
+    }
+
+
+def _fake_api_audit() -> dict[str, object]:
+    return {
+        "path": "repo",
+        "status": "ok",
+        "metadata": {"total_files": 1, "python_files": 1},
+        "scoring": {"overall_score": 72, "repository_health_score": 70, "categories": {}},
+        "diagnosis": {
+            "repository_health": {"label": "needs_attention", "score": 70, "summary": "Needs work."},
+            "hard_flags": [],
+            "limitations": [],
+        },
+        "project_understanding": {
+            "project_identity": {
+                "project_type": "web_service",
+                "frameworks": ["fastapi"],
+                "interfaces": ["rest_api"],
+            },
+            "entry_points": [{"path": "src/main.py", "symbol": "main"}],
+        },
+        "static_analysis": [
+            {
+                "tool": "ruff",
+                "status": "completed",
+                "findings": [
+                    {"code": "RUF001", "message": "lint", "file_path": "src/main.py", "line": 12, "severity": "medium"}
+                ],
+            }
+        ],
+        "test_analysis": [
+            {"tool": "pytest", "status": "completed", "summary": {"passed": 1, "failed": 0}, "findings": []},
+            {"tool": "coverage", "status": "completed", "summary": {"coverage_percent": 65}, "findings": []},
+        ],
+        "repository_analysis": [],
+        "devops_readiness": {"blockers": [{"id": "NO-CI", "title": "No CI configuration", "severity": "high"}]},
+        "recommendations_v2": [{"id": "ADD-TESTS", "title": "Add tests", "priority": 1, "severity": "high"}],
+        "remediation_suggestions": [
+            {"code": "RUF001", "title": "Fix lint", "message": "lint", "severity": "medium", "tool": "ruff"}
+        ],
+        "remediation_summary": {},
+    }
+
+
+def _grounded_provider_response() -> dict[str, object]:
+    return {
+        "summary": "The overall score is 72.",
+        "profile_context": "FastAPI web service.",
+        "top_priorities": [
+            {
+                "title": "Fix lint",
+                "why_it_matters": "RUF001 is present.",
+                "evidence": ["RUF001", "src/main.py:12"],
+                "suggested_fix": "Address the lint finding.",
+                "priority": "high",
+            }
+        ],
+        "lower_priority_items": [],
+        "limitations": [],
+        "next_steps": ["Run pytest."],
+    }
+
+
+def test_audit_ai_true_valid_grounded_response(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        "drrepo.api.service.build_advisor_for_audit",
+        lambda *args, **kwargs: _fake_advisor_package(status="ok", source="ai", provider="gemini"),
+    )
+    response = client.post(
+        "/api/audits",
+        json={"source_type": "local_path", "source_value": str(tmp_path), "ai": True},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    ai = data.get("ai_advisor") or {}
+    assert ai.get("requested") is True
+    assert ai.get("source") == "ai"
+    assert ai.get("status") == "ok"
+    assert ai.get("provider") == "gemini"
+    assert ai.get("grounding_result", {}).get("valid") is True
+    assert data.get("audit") is not None
+
+
+def test_audit_ai_provider_unavailable_fallback(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        "drrepo.api.service.build_advisor_for_audit",
+        lambda *args, **kwargs: _fake_advisor_package(
+            status="provider_unavailable", source="deterministic", provider="deterministic_fallback", fallback_reason="Provider unavailable"
+        ),
+    )
+    response = client.post(
+        "/api/audits",
+        json={"source_type": "local_path", "source_value": str(tmp_path), "ai": True},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    ai = data.get("ai_advisor") or {}
+    assert ai.get("source") == "deterministic"
+    assert ai.get("status") == "provider_unavailable"
+    assert ai.get("fallback_reason")
+
+
+def test_audit_ai_timeout_fallback(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        "drrepo.api.service.build_advisor_for_audit",
+        lambda *args, **kwargs: _fake_advisor_package(
+            status="timeout", source="deterministic", provider="deterministic_fallback", fallback_reason="Provider timed out"
+        ),
+    )
+    response = client.post(
+        "/api/audits",
+        json={"source_type": "local_path", "source_value": str(tmp_path), "ai": True},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    ai = data.get("ai_advisor") or {}
+    assert ai.get("status") == "timeout"
+    assert data.get("status") == "ok"
+
+
+def test_audit_ai_schema_invalid_fallback(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        "drrepo.api.service.build_advisor_for_audit",
+        lambda *args, **kwargs: _fake_advisor_package(
+            status="schema_invalid", source="deterministic", provider="deterministic_fallback", fallback_reason="Schema invalid"
+        ),
+    )
+    response = client.post(
+        "/api/audits",
+        json={"source_type": "local_path", "source_value": str(tmp_path), "ai": True},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    ai = data.get("ai_advisor") or {}
+    assert ai.get("status") == "schema_invalid"
+
+
+def test_audit_ai_grounding_rejection_fallback(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(
+        "drrepo.api.service.build_advisor_for_audit",
+        lambda *args, **kwargs: _fake_advisor_package(
+            status="grounding_rejected",
+            source="deterministic",
+            provider="gemini",
+            grounding_valid=False,
+            fallback_reason="AI response contradicted the audit evidence",
+        ),
+    )
+    response = client.post(
+        "/api/audits",
+        json={"source_type": "local_path", "source_value": str(tmp_path), "ai": True},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    ai = data.get("ai_advisor") or {}
+    assert ai.get("status") == "grounding_rejected"
+    assert ai.get("source") == "deterministic"
+    assert ai.get("grounding_result", {}).get("valid") is False
+
+
+def test_audit_ai_internal_error_does_not_return_500(monkeypatch, tmp_path: Path):
+    def boom(*args, **kwargs):
+        raise RuntimeError("unexpected advisor failure")
+
+    monkeypatch.setattr("drrepo.api.service.build_advisor_for_audit", boom)
+    response = client.post(
+        "/api/audits",
+        json={"source_type": "local_path", "source_value": str(tmp_path), "ai": True},
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data["ai_advisor"]["status"] == "internal_advisor_error"
+    assert data["ai_advisor"]["source"] == "deterministic"
+    assert data["audit"] is not None
+
+
+def test_audit_builder_called_once_for_ai_success(monkeypatch, tmp_path: Path):
+    calls: list[object] = []
+
+    def tracking_build_audit(*args, **kwargs):
+        calls.append(None)
+        return _fake_api_audit()
+
+    def fake_router(prompt_bundle, fallback_response, providers=None, provider_order=None):
+        return {
+            "selected_provider_id": "gemini",
+            "used_fallback": False,
+            "provider_attempts": [{"provider_id": "gemini", "status": "ok"}],
+            "advisor_response": _grounded_provider_response(),
+        }
+
+    monkeypatch.setattr("drrepo.api.service.build_audit", tracking_build_audit)
+    monkeypatch.setattr("drrepo.advisor.service.route_llm_advisor_response", fake_router)
+    response = client.post(
+        "/api/audits",
+        json={"source_type": "local_path", "source_value": str(tmp_path), "ai": True},
+    )
+    assert response.status_code == 200
+    assert len(calls) == 1
+    assert response.json()["ai_advisor"]["status"] == "ok"
+
+
+def test_audit_builder_called_once_for_ai_timeout_malformed_and_grounding_rejection(monkeypatch, tmp_path: Path):
+    scenarios = [
+        (
+            "timeout",
+            {
+                "selected_provider_id": "deterministic_fallback",
+                "used_fallback": True,
+                "provider_attempts": [{"provider_id": "gemini", "status": "timeout", "error": "timeout"}],
+                "advisor_response": _grounded_provider_response(),
+            },
+        ),
+        (
+            "invalid_json",
+            {
+                "selected_provider_id": "deterministic_fallback",
+                "used_fallback": True,
+                "provider_attempts": [{"provider_id": "gemini", "status": "invalid_json", "error": "malformed JSON"}],
+                "advisor_response": _grounded_provider_response(),
+            },
+        ),
+        (
+            "grounding_rejected",
+            {
+                "selected_provider_id": "gemini",
+                "used_fallback": False,
+                "provider_attempts": [{"provider_id": "gemini", "status": "ok"}],
+                "advisor_response": {**_grounded_provider_response(), "summary": "The overall score is 99."},
+            },
+        ),
+    ]
+
+    for expected_status, router_result in scenarios:
+        calls: list[object] = []
+
+        def tracking_build_audit(*args, **kwargs):
+            calls.append(None)
+            return _fake_api_audit()
+
+        monkeypatch.setattr("drrepo.api.service.build_audit", tracking_build_audit)
+        monkeypatch.setattr(
+            "drrepo.advisor.service.route_llm_advisor_response",
+            lambda prompt_bundle, fallback_response, providers=None, provider_order=None, result=router_result: result,
+        )
+
+        response = client.post(
+            "/api/audits",
+            json={"source_type": "local_path", "source_value": str(tmp_path), "ai": True},
+        )
+
+        assert response.status_code == 200
+        assert len(calls) == 1
+        ai = response.json()["ai_advisor"]
+        assert ai["status"] == expected_status
+        assert ai["source"] == "deterministic"

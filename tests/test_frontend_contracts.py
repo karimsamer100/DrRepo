@@ -46,3 +46,39 @@ def test_frontend_contracts_include_deep_isolated_controls():
     assert "install_dependencies" in card
     assert "allow_install_network" in card
     assert "isolated_options" in hook
+
+
+def test_frontend_ai_advisor_types_exist():
+    types = Path("frontend/src/types/api.ts").read_text(encoding="utf-8")
+    assert "export interface AIAdvisorResult" in types
+    assert "ai: boolean" in types
+    assert "ai_advisor: AIAdvisorResult | null" in types
+
+
+def test_frontend_audit_input_card_has_ai_toggle_and_disclosure():
+    card = Path("frontend/src/components/AuditInputCard.tsx").read_text(encoding="utf-8")
+    assert "AI Advisor" in card
+    assert "aiEnabled" in card
+    assert "privacy_note" in card
+    assert "provider_configured" in card
+
+
+def test_frontend_use_audit_sends_actual_ai_value():
+    hook = Path("frontend/src/state/useAudit.ts").read_text(encoding="utf-8")
+    assert "ai," in hook
+    assert "ai: boolean" in hook or "ai: false" in hook or "ai: true" in hook or "ai," in hook
+
+
+def test_frontend_advisor_panel_renders_ai_advisor():
+    panel = Path("frontend/src/components/AdvisorPanel.tsx").read_text(encoding="utf-8")
+    assert "aiAdvisor" in panel
+    assert "AI advisor guidance" in panel
+    assert "AI-generated" in panel
+    assert "Deterministic fallback" in panel
+    assert "Grounding:" in panel
+    assert "violation_codes" in panel
+
+
+def test_frontend_app_passes_ai_advisor_to_panel():
+    app = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+    assert "aiAdvisor={data.ai_advisor}" in app

@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+import json
 from copy import deepcopy
 from typing import Any, Dict, List
 
+from .grounding import normalize_evidence_path
 from .profiles import get_profile, validate_profile_id
+from .redaction import redact_audit_copy
 
 LLM_ADVISOR_CONTRACT_VERSION = "v1"
 ADVISOR_ACTION_REQUIRED_FIELDS = ("title", "why_it_matters", "evidence", "suggested_fix", "priority")
+MAX_PAYLOAD_FINDINGS = 8
+MAX_PAYLOAD_BLOCKERS = 6
+MAX_PAYLOAD_RECOMMENDATIONS = 8
+MAX_PAYLOAD_EXCERPT_CHARS = 240
+MAX_SERIALIZED_PAYLOAD_CHARS = 100_000
 
 
 def get_llm_advisor_action_schema() -> dict[str, object]:
@@ -30,6 +38,10 @@ def _as_dict(value: Any) -> Dict[str, Any]:
 
 def _as_list(value: Any) -> List[Any]:
     return value if isinstance(value, list) else []
+
+
+def _safe_str(value: Any) -> str:
+    return str(value) if value is not None else ""
 
 
 def _text_or_missing(value: Any) -> str:
@@ -122,6 +134,160 @@ def _missing_evidence_notes(plan: Dict[str, Any]) -> List[str]:
     return notes
 
 
+def _bounded_text(value: Any, max_length: int = MAX_PAYLOAD_EXCERPT_CHARS) -> str:
+    text = _safe_str(value)
+    if len(text) > max_length:
+        return text[: max_length - 3].rstrip() + "..."
+    return text
+
+
+def _compact_finding(finding: Dict[str, Any], audit_root: str | None = None, max_message_length: int = MAX_PAYLOAD_EXCERPT_CHARS) -> Dict[str, Any]:
+    """Return a compact, grounded representation of a single finding."""
+    message = _safe_str(finding.get("message"))
+    if len(message) > max_message_length:
+        message = message[: max_message_length - 3].rstrip() + "..."
+    compact: Dict[str, Any] = {
+        "tool": _safe_str(finding.get("tool")),
+        "code": _safe_str(finding.get("code")),
+        "severity": _safe_str(finding.get("severity")),
+        "message": message,
+    }
+    file_path = normalize_evidence_path(_safe_str(finding.get("file_path")), audit_root)
+    if file_path:
+        compact["file_path"] = file_path
+        line = finding.get("line")
+        if isinstance(line, int):
+            compact["line"] = line
+    return compact
+
+
+def _collect_top_findings(audit: Dict[str, Any], max_findings: int = MAX_PAYLOAD_FINDINGS) -> List[Dict[str, Any]]:
+    """Collect the most severe findings from all analyzer sections."""
+    severity_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "unknown": 4}
+    all_findings: List[Dict[str, Any]] = []
+    audit_root = _safe_str(audit.get("path"))
+    for section in ("static_analysis", "test_analysis", "repository_analysis"):
+        entries = audit.get(section)
+        if not isinstance(entries, list):
+            continue
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            tool = _safe_str(entry.get("tool") or entry.get("name"))
+            for finding in _as_list(entry.get("findings")):
+                if not isinstance(finding, dict):
+                    continue
+                all_findings.append({**finding, "tool": tool, "section": section})
+    all_findings.sort(key=lambda f: (severity_rank.get(_safe_str(f.get("severity")).lower(), 99), _safe_str(f.get("code"))))
+    return [_compact_finding(f, audit_root=audit_root) for f in all_findings[:max_findings]]
+
+
+def _collect_test_outcome(audit: Dict[str, Any]) -> Dict[str, Any]:
+    """Summarize pytest and coverage outcomes from the audit."""
+    result: Dict[str, Any] = {"pytest": "unknown", "coverage": None}
+    for section in ("test_analysis",):
+        entries = _as_list(audit.get(section))
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            tool = _safe_str(entry.get("tool")).lower()
+            status = _safe_str(entry.get("status"))
+            if tool == "pytest":
+                result["pytest"] = status
+                summary = _as_dict(entry.get("summary"))
+                if summary.get("failed"):
+                    result["pytest_failed"] = summary.get("failed")
+                if summary.get("passed"):
+                    result["pytest_passed"] = summary.get("passed")
+            elif tool == "coverage":
+                summary = _as_dict(entry.get("summary"))
+                percent = summary.get("coverage_percent")
+                if isinstance(percent, (int, float)):
+                    result["coverage"] = percent
+                result["coverage_status"] = status
+    return result
+
+
+def _collect_devops_blockers(audit: Dict[str, Any], max_blockers: int = MAX_PAYLOAD_BLOCKERS) -> List[Dict[str, Any]]:
+    devops = _as_dict(audit.get("devops_readiness"))
+    blockers: List[Dict[str, Any]] = []
+    for blocker in _as_list(devops.get("blockers")):
+        if not isinstance(blocker, dict):
+            continue
+        blockers.append({
+            "id": _safe_str(blocker.get("id")),
+            "title": _safe_str(blocker.get("title")),
+            "severity": _safe_str(blocker.get("severity")),
+            "category": _safe_str(blocker.get("category")),
+        })
+    return blockers[:max_blockers]
+
+
+def _collect_project_identity(audit: Dict[str, Any]) -> Dict[str, Any]:
+    understanding = _as_dict(audit.get("project_understanding"))
+    identity = _as_dict(understanding.get("project_identity"))
+    audit_root = _safe_str(audit.get("path"))
+    entry_points = [
+        normalize_evidence_path(_safe_str(entry.get("path")), audit_root)
+        for entry in _as_list(understanding.get("entry_points"))
+        if isinstance(entry, dict)
+    ]
+    entry_points = [p for p in entry_points if p]
+    return {
+        "project_type": _safe_str(identity.get("project_type")),
+        "secondary_project_types": [str(t) for t in _as_list(identity.get("secondary_project_types"))],
+        "frameworks": [str(t) for t in _as_list(identity.get("frameworks"))],
+        "interfaces": [str(t) for t in _as_list(identity.get("interfaces"))],
+        "package_layout": _safe_str(identity.get("package_layout")),
+        "confidence": _safe_str(identity.get("confidence")),
+        "entry_points": entry_points,
+    }
+
+
+def _collect_recommendations(audit: Dict[str, Any], max_recs: int = MAX_PAYLOAD_RECOMMENDATIONS) -> List[Dict[str, Any]]:
+    recs: List[Dict[str, Any]] = []
+    for rec in _as_list(audit.get("recommendations_v2")):
+        if not isinstance(rec, dict):
+            continue
+        recs.append({
+            "id": _safe_str(rec.get("id")),
+            "title": _bounded_text(rec.get("title")),
+            "priority": rec.get("priority") if isinstance(rec.get("priority"), int) else None,
+            "severity": _safe_str(rec.get("severity")),
+            "category": _safe_str(rec.get("category")),
+            "recommendation_type": _safe_str(rec.get("recommendation_type")),
+            "why_it_matters": _bounded_text(rec.get("why_it_matters")),
+            "success_check": _bounded_text(rec.get("success_check")),
+        })
+    return recs[:max_recs]
+
+
+def _enforce_payload_size(payload: Dict[str, Any]) -> Dict[str, Any]:
+    """Keep the serialized advisor payload within the v1 hard cap."""
+    compact = deepcopy(payload)
+    while len(json.dumps(compact, sort_keys=True)) > MAX_SERIALIZED_PAYLOAD_CHARS:
+        evidence = _as_dict(compact.get("bounded_evidence"))
+        if _as_list(evidence.get("top_findings")):
+            evidence["top_findings"] = _as_list(evidence.get("top_findings"))[:-1]
+            continue
+        if _as_list(evidence.get("deterministic_recommendations")):
+            evidence["deterministic_recommendations"] = _as_list(evidence.get("deterministic_recommendations"))[:-1]
+            continue
+        if _as_list(evidence.get("devops_blockers")):
+            evidence["devops_blockers"] = _as_list(evidence.get("devops_blockers"))[:-1]
+            continue
+        compact["payload_truncated"] = True
+        compact["bounded_evidence"] = {
+            "top_findings": [],
+            "test_outcome": evidence.get("test_outcome", {}),
+            "devops_blockers": [],
+            "project_identity": evidence.get("project_identity", {}),
+            "deterministic_recommendations": [],
+        }
+        break
+    return compact
+
+
 def _friendly_limitation_note(item: str) -> str:
     note = str(item).strip()
     lowered = note.lower()
@@ -155,7 +321,7 @@ def build_llm_advisor_payload(
     audit: dict[str, object],
     profiled_action_plan: dict[str, object],
 ) -> dict[str, object]:
-    audit_copy = deepcopy(audit) if isinstance(audit, dict) else {}
+    audit_copy = redact_audit_copy(audit) if isinstance(audit, dict) else {}
     plan_copy = deepcopy(profiled_action_plan) if isinstance(profiled_action_plan, dict) else {}
 
     profile = _as_dict(plan_copy.get("profile"))
@@ -192,7 +358,15 @@ def build_llm_advisor_payload(
         "evidence_notes": [str(item) for item in _as_list(plan_copy.get("evidence_notes")) if str(item)],
     }
 
-    return {
+    bounded_evidence = {
+        "top_findings": _collect_top_findings(audit_copy),
+        "test_outcome": _collect_test_outcome(audit_copy),
+        "devops_blockers": _collect_devops_blockers(audit_copy),
+        "project_identity": _collect_project_identity(audit_copy),
+        "deterministic_recommendations": _collect_recommendations(audit_copy),
+    }
+
+    payload: Dict[str, Any] = {
         "contract_version": LLM_ADVISOR_CONTRACT_VERSION,
         "role": "grounded_repository_advisor",
         "grounding_rules": [
@@ -214,6 +388,7 @@ def build_llm_advisor_payload(
             "profile_fit_summary": profile_fit_summary,
         },
         "audit_summary": audit_summary,
+        "bounded_evidence": bounded_evidence,
         "profiled_action_plan": profiled_plan,
         "response_requirements": {
             "must_return_json_only": True,
@@ -224,6 +399,7 @@ def build_llm_advisor_payload(
             "must_call_out_missing_evidence": True,
         },
     }
+    return _enforce_payload_size(payload)
 
 
 def get_llm_advisor_output_schema() -> dict[str, object]:

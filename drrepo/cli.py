@@ -9,11 +9,7 @@ from pathlib import Path
 
 import typer
 
-from drrepo.advisor.llm_router import route_llm_advisor_response
-from drrepo.advisor.prompting import build_llm_prompt_bundle
-from drrepo.advisor.reporting import build_deterministic_advisor_report
-from drrepo.advisor.reporting import format_advisor_markdown_section, format_advisor_summary_lines
-from drrepo.advisor.service import build_advisor_result
+from drrepo.advisor.service import build_advisor_for_audit
 from drrepo.advisor.profiles import validate_profile_id
 from drrepo.audit import build_audit
 from drrepo.reports.markdown_report import render_markdown_report
@@ -87,6 +83,30 @@ def _validated_cli_isolated_options(
     if options.allow_install_network:
         typer.echo("Network is allowed only during the dependency installation phase.", err=True)
     return raw
+
+
+def _format_ai_summary_block(ai_advisor: dict[str, object]) -> str:
+    source = ai_advisor.get("source", "deterministic")
+    status = ai_advisor.get("status", "unknown")
+    provider = ai_advisor.get("provider") or "deterministic"
+    model = ai_advisor.get("model") or "deterministic-advisor"
+    fallback = ai_advisor.get("fallback_reason")
+    grounding = ai_advisor.get("grounding_result") or {}
+    used_fallback = source != "ai" or fallback is not None
+
+    lines = ["## AI Advisor", "", f"Advisor mode: {source.upper()}", f"Status: {status}"]
+    lines.append(f"Selected provider: {provider}")
+    if source == "ai":
+        lines.append(f"Model: {model}")
+    lines.append(f"Fallback used: {'Yes' if used_fallback else 'No'}")
+    if grounding:
+        lines.append(f"Grounding: {'valid' if grounding.get('valid') else 'rejected'}")
+        violations = grounding.get("violations") or []
+        for violation in violations[:3]:
+            lines.append(f"  - {violation}")
+    if fallback:
+        lines.append(f"Fallback reason: {fallback}")
+    return "\n".join(lines)
 
 
 @app.command()
@@ -165,73 +185,47 @@ def audit(
         raise typer.BadParameter("Invalid format: must be 'json', 'markdown', or 'summary'")
 
     advisor_report = None
-    llm_router = None
+    ai_advisor = None
     if profile is not None:
         try:
             validate_profile_id(profile)
         except ValueError as exc:
             raise typer.BadParameter(f"Invalid profile: {profile}") from exc
-        if ai:
-            advisor_result = build_advisor_result(audit_result, profile_id=profile, include_prompt_bundle=True)
-            prompt_bundle = advisor_result.get("prompt_bundle", {})
-            fallback_response = advisor_result.get("advisor_report", {}).get("advisor_response", {})
-            llm_router = route_llm_advisor_response(prompt_bundle, fallback_response)
-            selected_advisor_response = llm_router.get("advisor_response", fallback_response)
-
-            advisor_report = dict(advisor_result.get("advisor_report", {}))
-            profiled_action_plan = advisor_report.get("profiled_action_plan", {})
-            advisor_report["advisor_response"] = selected_advisor_response
-            advisor_report["markdown_section"] = format_advisor_markdown_section(profiled_action_plan, selected_advisor_response)
-            advisor_report["summary_lines"] = format_advisor_summary_lines(profiled_action_plan, selected_advisor_response, max_lines=12)
-        else:
-            advisor_report = build_deterministic_advisor_report(audit_result, profile_id=profile)
-
-    def _format_ai_block(selected_provider_id: str, used_fallback: bool, provider_label: str) -> str:
-        fallback_text = "Yes" if used_fallback else "No"
-        return "\n".join(
-            [
-                "## AI Advisor",
-                "",
-                "Advisor mode: AI",
-                f"{provider_label}: {selected_provider_id}",
-                f"Fallback used: {fallback_text}",
-            ]
+        advisor_package = build_advisor_for_audit(
+            audit_result, profile_id=profile, ai=ai
         )
+        advisor_report = advisor_package.get("advisor_report")
+        ai_advisor = advisor_package.get("ai")
 
     # Build the formatted string
     if fmt == "json":
+        output_result = dict(audit_result)
         if advisor_report is not None:
-            output_result = dict(audit_result)
             output_result["advisor_report"] = advisor_report
-            if ai and llm_router is not None:
+        if ai_advisor is not None:
+            output_result["ai_advisor"] = ai_advisor
+            # Preserve backward-compatible llm_router summary for CLI consumers
+            router_result = ai_advisor.get("router_result")
+            if router_result:
                 output_result["llm_router"] = {
-                    "router_version": llm_router.get("router_version"),
-                    "selected_provider_id": llm_router.get("selected_provider_id"),
-                    "used_fallback": llm_router.get("used_fallback"),
-                    "provider_attempts": llm_router.get("provider_attempts", []),
+                    "router_version": "v1",
+                    "selected_provider_id": router_result.get("selected_provider_id"),
+                    "used_fallback": router_result.get("used_fallback"),
+                    "provider_attempts": router_result.get("provider_attempts", []),
                 }
-            formatted = json.dumps(output_result, indent=2)
-        else:
-            formatted = json.dumps(audit_result, indent=2)
+        formatted = json.dumps(output_result, indent=2)
     elif fmt == "markdown":
-        formatted = render_markdown_report(audit_result)
-        if advisor_report is not None:
-            if ai and llm_router is not None:
-                formatted = f"{formatted}\n\n{_format_ai_block(llm_router.get('selected_provider_id', 'deterministic_fallback'), bool(llm_router.get('used_fallback')), 'Advisor provider')}\n\n{advisor_report['markdown_section']}"
-            else:
-                formatted = f"{formatted}\n\n{advisor_report['markdown_section']}"
+        formatted = render_markdown_report(audit_result, ai_advisor=ai_advisor)
+        if advisor_report is not None and not (ai_advisor and ai_advisor.get("requested")):
+            markdown_section = advisor_report.get("markdown_section")
+            if markdown_section:
+                formatted = f"{formatted}\n\n{markdown_section}"
     else:
         formatted = render_terminal_summary(audit_result)
         if advisor_report is not None:
-            if ai and llm_router is not None:
-                formatted = (
-                    f"{formatted}\n\n"
-                    f"{_format_ai_block(llm_router.get('selected_provider_id', 'deterministic_fallback'), bool(llm_router.get('used_fallback')), 'Selected provider')}\n\n"
-                    "Advisor summary:\n"
-                    + "\n".join(advisor_report["summary_lines"])
-                )
-            else:
-                formatted = f"{formatted}\n\nAdvisor summary:\n" + "\n".join(advisor_report["summary_lines"])
+            formatted = f"{formatted}\n\nAdvisor summary:\n" + "\n".join(advisor_report.get("summary_lines", []))
+        if ai_advisor is not None and ai_advisor.get("requested"):
+            formatted = f"{formatted}\n\n{_format_ai_summary_block(ai_advisor)}"
 
     if output:
         out_path = Path(output)

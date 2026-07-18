@@ -72,7 +72,95 @@ def _display_location(file_path: Any, audit_root: Any, source_value: Any) -> str
     return file_path
 
 
-def render_markdown_report(audit: Dict[str, Any]) -> str:
+def _format_ai_advisor_section(ai_advisor: Dict[str, Any] | None) -> str:
+    """Render the AI advisor guidance section for Markdown output."""
+    if not isinstance(ai_advisor, dict) or not ai_advisor.get("requested"):
+        return ""
+
+    status = ai_advisor.get("status", "unknown")
+    source = ai_advisor.get("source", "deterministic")
+    provider = ai_advisor.get("provider") or "deterministic"
+    model = ai_advisor.get("model") or "deterministic-advisor"
+    fallback_reason = ai_advisor.get("fallback_reason")
+    grounding = ai_advisor.get("grounding_result") or {}
+
+    lines: List[str] = []
+    lines.append("")
+    lines.append("## AI Advisor Guidance")
+    lines.append("")
+    lines.append(f"- **Source**: {source}")
+    lines.append(f"- **Status**: {status}")
+    if source == "ai":
+        lines.append(f"- **Provider**: {provider}")
+        lines.append(f"- **Model**: {model}")
+    if grounding:
+        lines.append(f"- **Grounding**: {'valid' if grounding.get('valid') else 'rejected'}")
+        codes = grounding.get("violation_codes") or []
+        if codes:
+            lines.append(f"- **Grounding violation codes**: {', '.join(str(code) for code in codes[:6])}")
+        violations = grounding.get("violations") or []
+        if violations:
+            lines.append("- **Grounding violations**:")
+            for violation in violations[:6]:
+                lines.append(f"  - {violation}")
+    if fallback_reason:
+        lines.append(f"- **Fallback reason**: {fallback_reason}")
+
+    response = ai_advisor.get("advisor_response") or {}
+    summary = response.get("summary")
+    profile_context = response.get("profile_context")
+    if profile_context:
+        lines.append(f"- **Profile context**: {profile_context}")
+    if summary:
+        lines.append("")
+        lines.append(f"**Headline**: {summary}")
+
+    top_priorities = response.get("top_priorities") or []
+    lower_priority_items = response.get("lower_priority_items") or []
+    limitations = response.get("limitations") or []
+    next_steps = response.get("next_steps") or []
+
+    lines.append("")
+    lines.append("### Fix-first action")
+    if top_priorities:
+        first = top_priorities[0]
+        lines.append(f"- **{first.get('title', 'Priority')}** ({first.get('priority', 'medium')})")
+        why = first.get('why_it_matters')
+        if why:
+            lines.append(f"  - Why it matters: {why}")
+        fix = first.get('suggested_fix')
+        if fix:
+            lines.append(f"  - Suggested fix: {fix}")
+        evidence = first.get('evidence') or []
+        if evidence:
+            lines.append(f"  - Evidence: {', '.join(str(e) for e in evidence[:4])}")
+    else:
+        lines.append("- No immediate fix-first action was identified.")
+
+    if top_priorities[1:] or lower_priority_items:
+        lines.append("")
+        lines.append("### Ordered plan")
+        for idx, action in enumerate(top_priorities[1:], start=2):
+            lines.append(f"{idx}. **{action.get('title', 'Priority')}** ({action.get('priority', 'medium')})")
+        for action in lower_priority_items:
+            lines.append(f"- **{action.get('title', 'Lower priority')}** ({action.get('priority', 'low')})")
+
+    if next_steps:
+        lines.append("")
+        lines.append("### Success checks / next steps")
+        for step in next_steps:
+            lines.append(f"- {step}")
+
+    if limitations:
+        lines.append("")
+        lines.append("### Limitations")
+        for limitation in limitations:
+            lines.append(f"- {limitation}")
+
+    return "\n".join(lines)
+
+
+def render_markdown_report(audit: Dict[str, Any], ai_advisor: Dict[str, Any] | None = None) -> str:
     """Render an audit dictionary into a Markdown string.
 
     The function is defensive: missing keys are handled gracefully.
@@ -436,5 +524,7 @@ def render_markdown_report(audit: Dict[str, Any]) -> str:
 
     if not any_errors:
         lines.append("No analyzer errors reported.")
+
+    lines.append(_format_ai_advisor_section(ai_advisor))
 
     return "\n".join(lines)

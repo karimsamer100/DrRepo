@@ -177,3 +177,78 @@ def test_prioritized_action_plan_escapes_pipes():
     # ensure pipe characters are escaped in the table cells
     assert "Fix A \\| B" in md or "Fix A \\|" in md
     assert "Do X \\| Y" in md or "Do X \\|" in md
+
+
+def _ai_advisor() -> dict[str, object]:
+    return {
+        "requested": True,
+        "status": "ok",
+        "source": "ai",
+        "provider": "gemini",
+        "model": "gemini-2.5-flash",
+        "advisor_response": {
+            "summary": "Fix the highest-impact issues first.",
+            "profile_context": "Student portfolio",
+            "top_priorities": [
+                {
+                    "title": "Improve tests",
+                    "why_it_matters": "Raises confidence",
+                    "evidence": ["PYTEST-FAILED"],
+                    "suggested_fix": "Add more tests",
+                    "priority": "high",
+                }
+            ],
+            "lower_priority_items": [
+                {"title": "Add docs", "why_it_matters": "x", "evidence": [], "suggested_fix": "y", "priority": "low"}
+            ],
+            "limitations": ["No coverage data"],
+            "next_steps": ["Run pytest"],
+        },
+        "grounding_result": {
+            "valid": True,
+            "checked_claims": 3,
+            "validated_references": 3,
+            "violations": [],
+        },
+        "fallback_reason": None,
+        "duration_ms": 100,
+    }
+
+
+def test_markdown_includes_ai_advisor_guidance_when_requested():
+    audit = {"status": "ok", "path": "repo", "metadata": {}}
+    md = render_markdown_report(audit, ai_advisor=_ai_advisor())
+    assert "## AI Advisor Guidance" in md
+    assert "**Source**: ai" in md
+    assert "**Status**: ok" in md
+    assert "**Provider**: gemini" in md
+    assert "**Grounding**: valid" in md
+    assert "Fix-first action" in md
+    assert "Ordered plan" in md
+    assert "Success checks / next steps" in md
+
+
+def test_markdown_ai_section_only_when_requested():
+    audit = {"status": "ok", "path": "repo", "metadata": {}}
+    no_ai = render_markdown_report(audit)
+    assert "## AI Advisor Guidance" not in no_ai
+    requested = render_markdown_report(audit, ai_advisor=_ai_advisor())
+    assert "## AI Advisor Guidance" in requested
+
+
+def test_markdown_grounding_rejected_shown():
+    ai_advisor = _ai_advisor()
+    ai_advisor["status"] = "grounding_rejected"
+    ai_advisor["source"] = "deterministic"
+    ai_advisor["grounding_result"] = {
+        "valid": False,
+        "checked_claims": 3,
+        "validated_references": 2,
+        "violations": ["unknown evidence reference: x"],
+    }
+    ai_advisor["fallback_reason"] = "AI response contradicted the audit evidence"
+    audit = {"status": "ok", "path": "repo", "metadata": {}}
+    md = render_markdown_report(audit, ai_advisor=ai_advisor)
+    assert "**Grounding**: rejected" in md
+    assert "Fallback reason" in md
+    assert "unknown evidence reference" in md

@@ -63,6 +63,42 @@ def _fake_advisor_report(profile_display_name: str = "Student Portfolio") -> dic
     }
 
 
+def _fake_ai_package(
+    *,
+    source: str = "ai",
+    provider: str = "gemini",
+    used_fallback: bool = False,
+    grounding_valid: bool = True,
+) -> dict[str, object]:
+    return {
+        "advisor_service_version": "v1",
+        "profile_id": "student_portfolio",
+        "advisor_report": _fake_advisor_report(),
+        "ai": {
+            "requested": True,
+            "status": "ok" if source == "ai" else "fallback",
+            "source": source,
+            "provider": provider,
+            "model": "gemini-2.5-flash" if provider == "gemini" else "deterministic-advisor",
+            "advisor_response": _fake_advisor_report()["advisor_response"],
+            "grounding_result": {
+                "valid": grounding_valid,
+                "checked_claims": 3,
+                "validated_references": 3,
+                "violations": [],
+            },
+            "fallback_reason": None if not used_fallback else "Provider unavailable; using deterministic guidance.",
+            "limitations": ["No coverage data."],
+            "duration_ms": 120,
+            "router_result": {
+                "selected_provider_id": provider,
+                "used_fallback": used_fallback,
+                "provider_attempts": [{"provider_id": provider, "status": "ok"}],
+            },
+        },
+    }
+
+
 def test_audit_without_ai_and_without_profile_stays_deterministic_without_router(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_module, "build_audit", lambda path: _fake_audit())
 
@@ -87,61 +123,37 @@ def test_ai_without_profile_uses_student_portfolio(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_module, "build_audit", lambda path: _fake_audit())
     captured: dict[str, object] = {}
 
-    def fake_build_advisor_result(audit, profile_id="student_portfolio", max_actions=5, include_prompt_bundle=False):
+    def fake_build_advisor_for_audit(audit, profile_id="student_portfolio", ai=False, **kwargs):
         captured["profile_id"] = profile_id
-        result = {
-            "advisor_service_version": "v1",
-            "profile_id": profile_id,
-            "advisor_report": _fake_advisor_report(),
-        }
-        if include_prompt_bundle:
-            result["prompt_bundle"] = {"system_prompt": "sys", "user_prompt": "usr"}
-        return result
+        captured["ai"] = ai
+        return _fake_ai_package()
 
-    def fake_route(prompt_bundle, fallback_response):
-        return {
-            "router_version": "v1",
-            "selected_provider_id": "gemini",
-            "used_fallback": False,
-            "provider_attempts": [{"provider_id": "gemini", "status": "ok"}],
-            "advisor_response": {
-                "summary": "AI summary",
-                "profile_context": "AI context",
-                "top_priorities": [],
-                "lower_priority_items": [],
-                "limitations": [],
-                "next_steps": [],
-            },
-        }
-
-    monkeypatch.setattr(cli_module, "build_advisor_result", fake_build_advisor_result)
-    monkeypatch.setattr(cli_module, "route_llm_advisor_response", fake_route)
+    monkeypatch.setattr(cli_module, "build_advisor_for_audit", fake_build_advisor_for_audit)
 
     result = runner.invoke(app, ["audit", str(tmp_path), "--format", "summary", "--ai"])
 
     assert result.exit_code == 0
     assert captured["profile_id"] == "student_portfolio"
+    assert captured["ai"] is True
     assert "Advisor mode: AI" in result.output
     assert "Selected provider: gemini" in result.output
 
 
-def test_ai_markdown_includes_context_aware_advisor_and_provider_metadata(monkeypatch, tmp_path: Path):
+def test_ai_markdown_includes_ai_advisor_guidance_and_provider_metadata(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_module, "build_audit", lambda path: _fake_audit())
-    monkeypatch.setattr(cli_module, "build_advisor_result", lambda *args, **kwargs: {"advisor_service_version": "v1", "profile_id": "student_portfolio", "advisor_report": _fake_advisor_report(), "prompt_bundle": {"system_prompt": "sys", "user_prompt": "usr"}})
-    monkeypatch.setattr(cli_module, "route_llm_advisor_response", lambda prompt_bundle, fallback_response: {"router_version": "v1", "selected_provider_id": "gemini", "used_fallback": False, "provider_attempts": [{"provider_id": "gemini", "status": "ok"}], "advisor_response": _fake_audit()["diagnosis"] if False else _fake_advisor_report()["advisor_response"]})
+    monkeypatch.setattr(cli_module, "build_advisor_for_audit", lambda *args, **kwargs: _fake_ai_package())
 
     result = runner.invoke(app, ["audit", str(tmp_path), "--format", "markdown", "--profile", "student_portfolio", "--ai"])
 
     assert result.exit_code == 0
-    assert "Context-Aware Advisor" in result.output
-    assert "Advisor provider: gemini" in result.output
-    assert "Fallback used: No" in result.output
+    assert "## AI Advisor Guidance" in result.output
+    assert "**Provider**: gemini" in result.output
+    assert "**Grounding**: valid" in result.output
 
 
 def test_ai_summary_includes_selected_provider_metadata(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_module, "build_audit", lambda path: _fake_audit())
-    monkeypatch.setattr(cli_module, "build_advisor_result", lambda *args, **kwargs: {"advisor_service_version": "v1", "profile_id": "student_portfolio", "advisor_report": _fake_advisor_report(), "prompt_bundle": {"system_prompt": "sys", "user_prompt": "usr"}})
-    monkeypatch.setattr(cli_module, "route_llm_advisor_response", lambda prompt_bundle, fallback_response: {"router_version": "v1", "selected_provider_id": "gemini", "used_fallback": False, "provider_attempts": [{"provider_id": "gemini", "status": "ok"}], "advisor_response": _fake_advisor_report()["advisor_response"]})
+    monkeypatch.setattr(cli_module, "build_advisor_for_audit", lambda *args, **kwargs: _fake_ai_package())
 
     result = runner.invoke(app, ["audit", str(tmp_path), "--format", "summary", "--profile", "student_portfolio", "--ai"])
 
@@ -153,13 +165,13 @@ def test_ai_summary_includes_selected_provider_metadata(monkeypatch, tmp_path: P
 
 def test_ai_json_includes_router_metadata_and_hides_raw_response(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_module, "build_audit", lambda path: _fake_audit())
-    monkeypatch.setattr(cli_module, "build_advisor_result", lambda *args, **kwargs: {"advisor_service_version": "v1", "profile_id": "student_portfolio", "advisor_report": _fake_advisor_report(), "prompt_bundle": {"system_prompt": "sys", "user_prompt": "usr"}})
-    monkeypatch.setattr(cli_module, "route_llm_advisor_response", lambda prompt_bundle, fallback_response: {"router_version": "v1", "selected_provider_id": "gemini", "used_fallback": False, "provider_attempts": [{"provider_id": "gemini", "status": "ok"}], "advisor_response": _fake_advisor_report()["advisor_response"]})
+    monkeypatch.setattr(cli_module, "build_advisor_for_audit", lambda *args, **kwargs: _fake_ai_package())
 
     result = runner.invoke(app, ["audit", str(tmp_path), "--format", "json", "--profile", "student_portfolio", "--ai"])
 
     assert result.exit_code == 0
     assert '"llm_router"' in result.output
+    assert '"ai_advisor"' in result.output
     assert '"raw_response"' not in result.output
     assert 'abc123' not in result.output
     assert 'Authorization' not in result.output
@@ -167,11 +179,36 @@ def test_ai_json_includes_router_metadata_and_hides_raw_response(monkeypatch, tm
 
 def test_ai_fallback_path_still_succeeds(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(cli_module, "build_audit", lambda path: _fake_audit())
-    monkeypatch.setattr(cli_module, "build_advisor_result", lambda *args, **kwargs: {"advisor_service_version": "v1", "profile_id": "student_portfolio", "advisor_report": _fake_advisor_report(), "prompt_bundle": {"system_prompt": "sys", "user_prompt": "usr"}})
-    monkeypatch.setattr(cli_module, "route_llm_advisor_response", lambda prompt_bundle, fallback_response: {"router_version": "v1", "selected_provider_id": "deterministic_fallback", "used_fallback": True, "provider_attempts": [{"provider_id": "gemini", "status": "error"}], "advisor_response": _fake_advisor_report()["advisor_response"]})
+    monkeypatch.setattr(
+        cli_module,
+        "build_advisor_for_audit",
+        lambda *args, **kwargs: _fake_ai_package(source="deterministic", provider="deterministic_fallback", used_fallback=True),
+    )
 
     result = runner.invoke(app, ["audit", str(tmp_path), "--format", "summary", "--profile", "student_portfolio", "--ai"])
 
     assert result.exit_code == 0
     assert "Selected provider: deterministic_fallback" in result.output
+    assert "Fallback used: Yes" in result.output
+    assert "Advisor mode: DETERMINISTIC" in result.output
+
+
+def test_ai_grounding_rejected_shows_fallback(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(cli_module, "build_audit", lambda path: _fake_audit())
+    package = _fake_ai_package()
+    package["ai"]["status"] = "grounding_rejected"  # type: ignore[index]
+    package["ai"]["source"] = "deterministic"  # type: ignore[index]
+    package["ai"]["grounding_result"] = {  # type: ignore[index]
+        "valid": False,
+        "checked_claims": 3,
+        "validated_references": 2,
+        "violations": ["unknown evidence reference: tests/"],
+    }
+    package["ai"]["fallback_reason"] = "AI response contradicted the audit evidence; using deterministic guidance."  # type: ignore[index]
+    monkeypatch.setattr(cli_module, "build_advisor_for_audit", lambda *args, **kwargs: package)
+
+    result = runner.invoke(app, ["audit", str(tmp_path), "--format", "summary", "--profile", "student_portfolio", "--ai"])
+
+    assert result.exit_code == 0
+    assert "Grounding: rejected" in result.output
     assert "Fallback used: Yes" in result.output

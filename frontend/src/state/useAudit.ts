@@ -26,6 +26,7 @@ export function useAudit() {
       sourceValue: string,
       analysisMode: AnalysisMode,
       profileId: string,
+      ai: boolean,
       includeMarkdown: boolean,
       isolatedOptions?: IsolatedOptions | null
     ) => {
@@ -37,7 +38,7 @@ export function useAudit() {
         analysis_mode: analysisMode,
         isolated_options: analysisMode === 'deep_isolated' ? isolatedOptions || null : null,
         profile_id: profileId,
-        ai: false,
+        ai,
         include_markdown: includeMarkdown,
       }
       setState({ status: 'loading', data: null, error: null, lastRequest: request })

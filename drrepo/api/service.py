@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
+
+from drrepo.advisor.reporting import build_deterministic_advisor_report
+from drrepo.advisor.service import build_advisor_for_audit
 from drrepo.analyzers.registry import validate_analysis_mode
+from drrepo.audit import build_audit
 
 
 def run_audit_service(
@@ -14,9 +18,6 @@ def run_audit_service(
     analysis_mode: str | None = None,
     isolated_options: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    if ai:
-        raise ValueError("AI advisor mode is not supported via the API yet.")
-
     from drrepo.advisor.profiles import validate_profile_id
 
     validate_profile_id(profile_id)
@@ -57,8 +58,6 @@ def run_audit_service(
     else:
         raise ValueError(f"Unsupported source_type: {source_type}")
 
-    from drrepo.audit import build_audit
-
     try:
         audit = build_audit(audit_path, source_type=source_type, analysis_mode=mode, profile_id=profile_id, isolated_options=isolated_options)
     finally:
@@ -74,18 +73,36 @@ def run_audit_service(
 
     audit["source"] = {"type": source_type, "value": source_value}
 
-    from drrepo.advisor.service import build_advisor_result
-
-    advisor_result = build_advisor_result(
-        audit, profile_id=profile_id, include_prompt_bundle=False
-    )
-    advisor_report = advisor_result.get("advisor_report")
+    try:
+        advisor_package = build_advisor_for_audit(
+            audit, profile_id=profile_id, ai=ai
+        )
+    except Exception as exc:
+        advisor_report = build_deterministic_advisor_report(audit, profile_id=profile_id)
+        deterministic_response = advisor_report.get("advisor_response", {})
+        advisor_package = {
+            "advisor_report": advisor_report,
+            "ai": {
+                "requested": ai,
+                "status": "internal_advisor_error" if ai else "not_requested",
+                "source": "deterministic",
+                "provider": None,
+                "model": "deterministic-advisor",
+                "advisor_response": deterministic_response,
+                "grounding_result": None,
+                "limitations": list(deterministic_response.get("limitations", [])) if isinstance(deterministic_response, dict) else [],
+                "fallback_reason": f"Advisor failed safely: {type(exc).__name__}" if ai else None,
+                "duration_ms": 0,
+            },
+        }
+    advisor_report = advisor_package.get("advisor_report")
+    ai_advisor = advisor_package.get("ai")
 
     markdown: str | None = None
     if include_markdown:
         from drrepo.reports.markdown_report import render_markdown_report
 
-        markdown = render_markdown_report(audit)
+        markdown = render_markdown_report(audit, ai_advisor=ai_advisor)
 
     return {
         "status": audit.get("status", "ok"),
@@ -95,5 +112,6 @@ def run_audit_service(
         "profile_id": profile_id,
         "audit": audit,
         "advisor": advisor_report,
+        "ai_advisor": ai_advisor,
         "markdown": markdown,
     }

@@ -46,6 +46,7 @@ class AuditResponse(BaseModel):
     profile_id: str
     audit: dict[str, Any]
     advisor: dict[str, Any] | None
+    ai_advisor: dict[str, Any] | None
     markdown: str | None
 
 
@@ -56,3 +57,4 @@ class CapabilitiesResponse(BaseModel):
     docker_isolated_execution: dict[str, Any]
     remote_execution_safety_policy: str
     setup: dict[str, Any]
+    ai_advisor: dict[str, Any] | None = None

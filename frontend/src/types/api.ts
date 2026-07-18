@@ -288,11 +288,13 @@ export interface AdvisorAction {
   action?: string
   priority?: string
   why_it_matters?: string
+  suggested_fix?: string
   evidence?: string | string[]
 }
 
 export interface AdvisorResponse {
   summary?: string
+  profile_context?: string
   top_priorities?: AdvisorAction[]
   lower_priority_items?: AdvisorAction[]
   limitations?: string[]
@@ -315,6 +317,29 @@ export interface AdvisorReport {
   summary_lines?: string[]
 }
 
+export interface GroundingResult {
+  valid: boolean
+  status?: string
+  checked_claims?: number
+  validated_references?: number
+  violation_codes?: string[]
+  violation_details?: Array<{ code: string; description: string }>
+  violations?: string[]
+}
+
+export interface AIAdvisorResult {
+  requested: boolean
+  status: string
+  source: 'ai' | 'deterministic'
+  provider?: string | null
+  model?: string | null
+  advisor_response?: AdvisorResponse
+  grounding_result?: GroundingResult | null
+  fallback_reason?: string | null
+  limitations?: string[]
+  duration_ms?: number
+}
+
 export type SourceType = 'local_path' | 'github_url'
 export type AnalysisMode = 'quick_safe' | 'deep_local' | 'deep_isolated'
 
@@ -332,7 +357,7 @@ export interface AuditRequest {
   analysis_mode?: AnalysisMode | null
   isolated_options?: IsolatedOptions | null
   profile_id: string
-  ai: false
+  ai: boolean
   include_markdown: boolean
 }
 
@@ -344,6 +369,7 @@ export interface AuditResponse {
   profile_id: string
   audit: Audit
   advisor: AdvisorReport | null
+  ai_advisor: AIAdvisorResult | null
   markdown: string | null
 }
 
@@ -381,6 +407,16 @@ export interface AnalysisModeCapability {
   supported_source_types: SourceType[]
 }
 
+export interface AIAdvisorCapability {
+  supported: boolean
+  provider_routes?: string[]
+  provider_configured?: boolean
+  configured_providers?: string[]
+  deterministic_fallback_available?: boolean
+  explicit_opt_in_required?: boolean
+  privacy_note?: string
+}
+
 export interface CapabilitiesResponse {
   supported_analysis_modes: AnalysisModeCapability[]
   supported_source_types: SourceType[]
@@ -401,4 +437,5 @@ export interface CapabilitiesResponse {
     analysis_extra?: string
     install_command?: string
   }
+  ai_advisor?: AIAdvisorCapability | null
 }

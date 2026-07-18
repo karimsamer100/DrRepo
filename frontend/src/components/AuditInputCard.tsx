@@ -11,6 +11,7 @@ interface AuditInputCardProps {
     sourceValue: string,
     analysisMode: AnalysisMode,
     profileId: string,
+    ai: boolean,
     includeMarkdown: boolean,
     isolatedOptions?: IsolatedOptions | null
   ) => void
@@ -50,6 +51,7 @@ export function AuditInputCard({
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>('deep_local')
   const [sourceValue, setSourceValue] = useState('')
   const [profileId, setProfileId] = useState('student_portfolio')
+  const [aiEnabled, setAiEnabled] = useState(false)
   const [includeMarkdown, setIncludeMarkdown] = useState(false)
   const [installDependencies, setInstallDependencies] = useState(false)
   const [allowInstallNetwork, setAllowInstallNetwork] = useState(false)
@@ -89,6 +91,7 @@ export function AuditInputCard({
         sourceValue.trim(),
         analysisMode,
         profileId,
+        aiEnabled,
         includeMarkdown,
         analysisMode === 'deep_isolated'
           ? {
@@ -361,6 +364,42 @@ export function AuditInputCard({
               <p className="mt-2 text-xs leading-5 text-faint">
                 The profile changes remediation emphasis only; it does not change repository evidence.
               </p>
+            </div>
+
+            <div>
+              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-base px-3.5 py-3">
+                <input
+                  type="checkbox"
+                  checked={aiEnabled}
+                  disabled={!capabilities?.ai_advisor?.supported}
+                  onChange={(e) => setAiEnabled(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-border bg-surface-2 text-brand focus:ring-brand/50 disabled:opacity-50"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-primary">
+                    AI Advisor
+                    {capabilities?.ai_advisor?.supported && capabilities?.ai_advisor?.provider_configured && (
+                      <span className="ml-2 rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-[10px] font-normal text-brand">
+                        available
+                      </span>
+                    )}
+                  </span>
+                  <span className="block text-xs leading-5 text-faint">
+                    Use a configured third-party provider to turn the audit into prioritized guidance.
+                  </span>
+                </span>
+              </label>
+              {aiEnabled && (
+                <p className="mt-2 rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning">
+                  {capabilities?.ai_advisor?.privacy_note ||
+                    'AI mode sends a bounded, redacted summary of the audit evidence to a provider. Only enable if you accept that.'}
+                </p>
+              )}
+              {!capabilities?.ai_advisor?.supported && (
+                <p className="mt-2 text-xs leading-5 text-faint">
+                  AI advisor is not advertised by this API build.
+                </p>
+              )}
             </div>
 
             <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-base px-3.5 py-3">

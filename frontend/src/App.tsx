@@ -37,6 +37,7 @@ function ResultLayout({ data }: { data: AuditResponse }) {
         <FindingsList audit={data.audit} />
         <AdvisorPanel
           advisor={data.advisor}
+          aiAdvisor={data.ai_advisor}
           profileId={data.profile_id}
           recommendations={data.audit.recommendations_v2}
         />
@@ -114,6 +115,7 @@ export default function App() {
       request.source_value,
       request.analysis_mode || (request.source_type === 'github_url' ? 'quick_safe' : 'deep_local'),
       request.profile_id,
+      request.ai,
       request.include_markdown,
       request.isolated_options || null
     )

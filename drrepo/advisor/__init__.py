@@ -32,7 +32,18 @@ from .reporting import (
 )
 from .service import (
     ADVISOR_SERVICE_VERSION,
+    build_advisor_for_audit,
     build_advisor_result,
+)
+from .grounding import (
+    build_evidence_index,
+    validate_grounding,
+)
+from .redaction import (
+    redact_audit_copy,
+    redact_exception_message,
+    redact_payload,
+    redact_text,
 )
 from .api_schema import (
     ADVISOR_API_RESPONSE_VERSION,
@@ -88,6 +99,13 @@ __all__ = [
     "format_advisor_summary_lines",
     "ADVISOR_SERVICE_VERSION",
     "build_advisor_result",
+    "build_advisor_for_audit",
+    "build_evidence_index",
+    "validate_grounding",
+    "redact_audit_copy",
+    "redact_exception_message",
+    "redact_payload",
+    "redact_text",
     "ADVISOR_API_RESPONSE_VERSION",
     "build_advisor_api_response",
     "validate_advisor_api_response",

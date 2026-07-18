@@ -10,6 +10,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from drrepo.advisor.profiles import list_profiles
+from drrepo.advisor.llm_providers import get_supported_provider_ids
 from drrepo.api.schemas import (
     AuditRequest,
     AuditResponse,
@@ -42,6 +43,32 @@ class SPAStaticFiles(StaticFiles):
             if exc.status_code == 404 and self.html and not Path(path).suffix:
                 return await super().get_response("index.html", scope)
             raise
+
+def _ai_advisor_capabilities() -> dict[str, object]:
+    provider_routes: list[str] = []
+    configured_providers: list[str] = []
+    for provider_id in get_supported_provider_ids():
+        if provider_id == "deterministic_fallback":
+            continue
+        provider_routes.append(provider_id)
+        env_key = f"{provider_id.upper()}_API_KEY"
+        if os.getenv(env_key):
+            configured_providers.append(provider_id)
+        # Gemini also accepts GOOGLE_API_KEY
+        if provider_id == "gemini" and os.getenv("GOOGLE_API_KEY"):
+            if provider_id not in configured_providers:
+                configured_providers.append(provider_id)
+
+    return {
+        "supported": True,
+        "provider_routes": provider_routes,
+        "provider_configured": len(configured_providers) > 0,
+        "configured_providers": configured_providers,
+        "deterministic_fallback_available": True,
+        "explicit_opt_in_required": True,
+        "privacy_note": "AI advisor sends a bounded, redacted summary of audit evidence to a configured third-party provider only when explicitly requested.",
+    }
+
 
 app = FastAPI(title="DrRepo API", version="0.1.0")
 
@@ -81,7 +108,9 @@ async def profiles():
 
 @app.get("/api/capabilities", response_model=CapabilitiesResponse)
 async def capabilities():
-    return CapabilitiesResponse(**capability_payload())
+    payload = capability_payload()
+    payload["ai_advisor"] = _ai_advisor_capabilities()
+    return CapabilitiesResponse(**payload)
 
 
 @app.post("/api/audits", response_model=AuditResponse)
