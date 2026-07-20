@@ -33,6 +33,8 @@ def test_capability_payload_includes_registry_and_safety_policy():
     analyzers = {entry["analyzer_id"]: entry for entry in payload["analyzers"]}
 
     assert {"readme", "structure", "ruff", "bandit", "radon", "pytest", "coverage"} <= set(analyzers)
+    assert analyzers["architecture_graph"]["executes_repository_code"] is False
+    assert "quick_safe" in analyzers["architecture_graph"]["supported_analysis_modes"]
     assert analyzers["pytest"]["executes_repository_code"] is True
     assert analyzers["ruff"]["executes_repository_code"] is False
     assert "deep_isolated" in modes

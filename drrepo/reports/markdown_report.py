@@ -160,6 +160,76 @@ def _format_ai_advisor_section(ai_advisor: Dict[str, Any] | None) -> str:
     return "\n".join(lines)
 
 
+def _format_architecture_sections(architecture: Dict[str, Any] | None) -> List[str]:
+    if not isinstance(architecture, dict):
+        return []
+    lines: List[str] = []
+    lines.append("")
+    lines.append("## Architecture Overview")
+    lines.append("")
+    lines.append(f"- **Status**: {_safe_get(architecture, 'status', 'unknown')}")
+    lines.append(f"- **Confidence**: {_safe_get(architecture, 'confidence', 'unknown')}")
+    summary = _safe_get(architecture, "summary")
+    if summary:
+        lines.append(f"- **Summary**: {summary}")
+    entry_points = _safe_get(architecture, "entry_points", []) or []
+    if entry_points:
+        lines.append("- **Entry points**:")
+        for entry in entry_points[:6]:
+            if isinstance(entry, dict):
+                lines.append(f"  - {entry.get('kind', 'entry')}: `{entry.get('path', 'unknown')}` ({entry.get('confidence', 'unknown')})")
+    layers = _safe_get(architecture, "layers", []) or []
+    if layers:
+        lines.append("- **Layers**:")
+        for layer in layers[:8]:
+            if isinstance(layer, dict):
+                node_count = len(layer.get("node_ids") or []) if isinstance(layer.get("node_ids"), list) else 0
+                lines.append(f"  - {layer.get('label', layer.get('id', 'layer'))}: {node_count} node(s)")
+    externals = _safe_get(architecture, "external_integrations", []) or []
+    if externals:
+        lines.append("- **External integrations**: " + ", ".join(str(item.get("name")) for item in externals[:8] if isinstance(item, dict) and item.get("name")))
+    cycles = _safe_get(architecture, "cycles", []) or []
+    if cycles:
+        lines.append("- **Detected cycles**:")
+        for cycle in cycles[:4]:
+            if isinstance(cycle, dict):
+                lines.append(f"  - {cycle.get('id', 'cycle')}: {cycle.get('classification', 'requires review')} ({', '.join(str(p) for p in (cycle.get('paths') or [])[:4])})")
+    gaps = _safe_get(architecture, "evidence_gaps", []) or []
+    if gaps:
+        lines.append("- **Evidence gaps**:")
+        for gap in gaps[:4]:
+            lines.append(f"  - {gap}")
+
+    hotspots = _safe_get(architecture, "hotspots", []) or []
+    lines.append("")
+    lines.append("## Top Risk Hotspots")
+    if not hotspots:
+        lines.append("")
+        lines.append("No production hotspot exceeded the v1 threshold.")
+        return lines
+    for hotspot in hotspots[:8]:
+        if not isinstance(hotspot, dict):
+            continue
+        lines.append("")
+        lines.append(f"### {hotspot.get('rank', '-')}. {hotspot.get('path', 'unknown')}")
+        lines.append(f"- **Risk**: {hotspot.get('risk_level', 'unknown')} ({hotspot.get('risk_score', 'unknown')})")
+        lines.append(f"- **Confidence**: {hotspot.get('confidence', 'unknown')}")
+        lines.append(f"- **Test status**: {hotspot.get('test_status', 'unknown')}")
+        why = hotspot.get("why_it_matters")
+        if why:
+            lines.append(f"- **Why it matters**: {why}")
+        action = hotspot.get("recommended_action")
+        if action:
+            lines.append(f"- **Recommended action**: {action}")
+        factors = hotspot.get("factors") or []
+        if factors:
+            lines.append("- **Factors**:")
+            for factor in factors[:5]:
+                if isinstance(factor, dict):
+                    lines.append(f"  - {factor.get('label', factor.get('id', 'factor'))}: +{factor.get('contribution', 0)}")
+    return lines
+
+
 def render_markdown_report(audit: Dict[str, Any], ai_advisor: Dict[str, Any] | None = None) -> str:
     """Render an audit dictionary into a Markdown string.
 
@@ -180,6 +250,7 @@ def render_markdown_report(audit: Dict[str, Any], ai_advisor: Dict[str, Any] | N
     entry_points = _safe_get(understanding, "entry_points", []) or []
     recs_v2 = _safe_get(audit, "recommendations_v2", []) or []
     devops = _safe_get(audit, "devops_readiness", {}) or {}
+    architecture = _safe_get(audit, "architecture_assessment", {}) or {}
 
     if executive:
         lines.append("")
@@ -215,6 +286,8 @@ def render_markdown_report(audit: Dict[str, Any], ai_advisor: Dict[str, Any] | N
         lines.append(f"- **Secondary types**: {', '.join(secondary) if secondary else 'None'}")
         lines.append(f"- **Package layout**: {_safe_get(identity, 'package_layout', 'unknown')}")
         lines.append(f"- **Confidence**: {_safe_get(identity, 'confidence', 'unknown')}")
+
+    lines.extend(_format_architecture_sections(architecture))
 
     if devops:
         lines.append("")

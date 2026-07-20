@@ -72,6 +72,8 @@ def test_capabilities_endpoint():
     assert modes["deep_local"]["supported_source_types"] == ["local_path"]
     assert modes["deep_isolated"]["supported_source_types"] == ["local_path", "github_url"]
     assert analyzers["pytest"]["executes_repository_code"] is True
+    assert analyzers["architecture_graph"]["executes_repository_code"] is False
+    assert analyzers["architecture_graph"]["section"] == "architecture"
     assert analyzers["ci_config"]["executes_repository_code"] is False
     assert analyzers["container_config"]["section"] == "readiness"
     assert ".[analysis]" in data["setup"]["install_command"]
@@ -103,6 +105,8 @@ def test_audit_local_path_success():
     assert "executive_report" in data["audit"]
     assert "recommendations_v2" in data["audit"]
     assert "devops_readiness" in data["audit"]
+    assert "architecture_assessment" in data["audit"]
+    assert data["audit"]["architecture_assessment"]["status"] in {"completed", "partial"}
     assert data["audit"]["executive_report"]["verdict"] == data["audit"]["diagnosis"]["repository_health"]["label"]
     assert data["markdown"] is None
 

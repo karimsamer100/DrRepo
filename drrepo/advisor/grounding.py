@@ -38,6 +38,7 @@ _KNOWN_ANALYZERS = {
     "ruff",
     "structure",
     "repository_intelligence",
+    "architecture_graph",
     "ci_config",
     "container_config",
 }
@@ -222,6 +223,48 @@ def _collect_project_facts(audit: dict[str, Any]) -> dict[str, set[str]]:
     return facts
 
 
+def _collect_architecture_facts(audit: dict[str, Any]) -> dict[str, set[str]]:
+    architecture = _as_dict(audit.get("architecture_assessment"))
+    facts: dict[str, set[str]] = {
+        "architecture_node_ids": set(),
+        "architecture_hotspot_ids": set(),
+        "architecture_cycle_ids": set(),
+        "architecture_paths": set(),
+    }
+    for node in _as_list(architecture.get("nodes")):
+        if not isinstance(node, dict):
+            continue
+        node_id = _safe_str(node.get("id"))
+        if node_id:
+            facts["architecture_node_ids"].add(node_id)
+        path = normalize_evidence_path(_safe_str(node.get("path")), audit.get("path"))
+        if path:
+            facts["architecture_paths"].add(path)
+    for hotspot in _as_list(architecture.get("hotspots")):
+        if not isinstance(hotspot, dict):
+            continue
+        hotspot_id = _safe_str(hotspot.get("id"))
+        if hotspot_id:
+            facts["architecture_hotspot_ids"].add(hotspot_id)
+        node_id = _safe_str(hotspot.get("node_id"))
+        if node_id:
+            facts["architecture_node_ids"].add(node_id)
+        path = normalize_evidence_path(_safe_str(hotspot.get("path")), audit.get("path"))
+        if path:
+            facts["architecture_paths"].add(path)
+    for cycle in _as_list(architecture.get("cycles")):
+        if not isinstance(cycle, dict):
+            continue
+        cycle_id = _safe_str(cycle.get("id"))
+        if cycle_id:
+            facts["architecture_cycle_ids"].add(cycle_id)
+        for path_value in _as_list(cycle.get("paths")):
+            path = normalize_evidence_path(_safe_str(path_value), audit.get("path"))
+            if path:
+                facts["architecture_paths"].add(path)
+    return facts
+
+
 def build_evidence_index(audit: dict[str, Any]) -> dict[str, Any]:
     """Build a deterministic index of allowed audit references.
 
@@ -261,6 +304,8 @@ def build_evidence_index(audit: dict[str, Any]) -> dict[str, Any]:
     devops_blocker_titles = {b["title"] for b in _collect_devops_blockers(audit) if b["title"]}
 
     facts = _collect_project_facts(audit)
+    architecture_facts = _collect_architecture_facts(audit)
+    file_paths.update(architecture_facts["architecture_paths"])
 
     return {
         "version": _GROUNDING_VERSION,
@@ -280,6 +325,9 @@ def build_evidence_index(audit: dict[str, Any]) -> dict[str, Any]:
         "frameworks": facts["frameworks"],
         "interfaces": facts["interfaces"],
         "entry_points": facts["entry_points"],
+        "architecture_node_ids": architecture_facts["architecture_node_ids"],
+        "architecture_hotspot_ids": architecture_facts["architecture_hotspot_ids"],
+        "architecture_cycle_ids": architecture_facts["architecture_cycle_ids"],
     }
 
 
@@ -380,6 +428,9 @@ def _check_action_grounding(action: dict[str, Any], index: dict[str, Any], viola
             index.get("devops_blocker_ids", set()),
             index.get("devops_blocker_titles", set()),
             index.get("analyzer_ids", set()),
+            index.get("architecture_node_ids", set()),
+            index.get("architecture_hotspot_ids", set()),
+            index.get("architecture_cycle_ids", set()),
             index.get("file_paths", set()),
             index.get("line_references", set()),
         ]
@@ -396,7 +447,13 @@ def _check_action_grounding(action: dict[str, Any], index: dict[str, Any], viola
             _add_violation(violations, "invalid_path_reference", "Evidence reference must be repository-relative and cannot be absolute or contain traversal.")
             continue
         # If the ref looks like a path or line reference but isn't in the index, flag it
-        if line_ref and normalized_line_ref not in index.get("line_references", set()):
+        if ref_str.startswith("node:"):
+            _add_violation(violations, "unknown_architecture_node_id", f"Architecture node '{ref_str}' is not present in audit evidence.")
+        elif ref_str.startswith("hotspot:"):
+            _add_violation(violations, "unknown_hotspot_id", f"Architecture hotspot '{ref_str}' is not present in audit evidence.")
+        elif ref_str.startswith("cycle:"):
+            _add_violation(violations, "unknown_cycle_id", f"Architecture cycle '{ref_str}' is not present in audit evidence.")
+        elif line_ref and normalized_line_ref not in index.get("line_references", set()):
             _add_violation(violations, "unsupported_line_reference", f"Line reference '{normalized_line_ref}' is not present in audit evidence.")
         elif "/" in ref_str or ":" in ref_str or "\\" in ref_str:
             _add_violation(violations, "unknown_file_path", f"File path '{normalized_ref}' is not present in audit evidence.")

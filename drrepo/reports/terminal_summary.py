@@ -48,6 +48,7 @@ def render_terminal_summary(audit: Dict[str, Any]) -> str:
     identity = _safe_get(understanding, "project_identity", {}) or {}
     runnability = _safe_get(understanding, "runnability", {}) or {}
     devops = _safe_get(audit, "devops_readiness", {}) or {}
+    architecture = _safe_get(audit, "architecture_assessment", {}) or {}
 
     if executive:
         lines.append(str(_safe_get(executive, "headline", "Executive summary")))
@@ -83,6 +84,24 @@ def render_terminal_summary(audit: Dict[str, Any]) -> str:
         if blockers:
             titles = [str(item.get("title", "blocker")) for item in blockers if isinstance(item, dict)]
             lines.append("Release blockers: " + ", ".join(titles[:3]))
+        lines.append("")
+
+    if architecture:
+        lines.append(f"Architecture: {_safe_get(architecture, 'confidence', 'unknown')} confidence")
+        arch_summary = _safe_get(architecture, "summary")
+        if arch_summary:
+            lines.append(str(arch_summary))
+        hotspots = _safe_get(architecture, "hotspots", []) or []
+        if hotspots:
+            top = []
+            for hotspot in hotspots[:3]:
+                if isinstance(hotspot, dict):
+                    top.append(f"{hotspot.get('path', 'unknown')} ({hotspot.get('risk_level', 'unknown')} {hotspot.get('risk_score', 'unknown')})")
+            if top:
+                lines.append("Top architecture hotspots: " + ", ".join(top))
+        cycles = _safe_get(architecture, "cycles", []) or []
+        if cycles:
+            lines.append(f"Architecture cycles: {len(cycles)} detected")
         lines.append("")
 
     if source_value:

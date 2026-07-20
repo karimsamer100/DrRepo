@@ -11,6 +11,7 @@ import { MarkdownPreview } from './components/MarkdownPreview'
 import { MetadataCard } from './components/MetadataCard'
 import { ExportActions } from './components/ExportActions'
 import { DevOpsReadinessPanel } from './components/DevOpsReadinessPanel'
+import { ArchitecturePanel } from './components/ArchitecturePanel'
 import { useAudit } from './state/useAudit'
 import type { RecentAudit } from './lib/recentAudits'
 import {
@@ -33,6 +34,7 @@ function ResultLayout({ data }: { data: AuditResponse }) {
     <div className="grid gap-6 pb-12 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
       <div className="min-w-0 space-y-6">
         <ResultOverview data={data} />
+        <ArchitecturePanel assessment={data.audit.architecture_assessment} />
         <DevOpsReadinessPanel readiness={data.audit.devops_readiness} />
         <FindingsList audit={data.audit} />
         <AdvisorPanel

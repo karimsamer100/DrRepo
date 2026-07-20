@@ -107,6 +107,7 @@ ANALYZERS: tuple[AnalyzerDefinition, ...] = (
     _definition("configuration_security", "Configuration and secrets", "readiness", "configuration_security", False, ANALYSIS_MODES, None, 10, True),
     _definition("observability", "Observability signals", "readiness", "observability", False, ANALYSIS_MODES, None, 10, True),
     _definition("release_hygiene", "Release hygiene", "readiness", "release_hygiene", False, ANALYSIS_MODES, None, 10, True),
+    _definition("architecture_graph", "Architecture graph", "architecture", "architecture", False, ANALYSIS_MODES, None, 10, True),
 )
 
 

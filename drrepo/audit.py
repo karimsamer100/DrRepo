@@ -21,6 +21,7 @@ from drrepo.analyzers.registry import validate_analysis_mode
 from drrepo.environment import detect_dependency_environment
 from drrepo.intelligence import build_repository_intelligence
 from drrepo.readiness import build_devops_readiness
+from drrepo.architecture import build_architecture_assessment
 
 
 def _run_with_mode(fn, root: str | Path, *, source_type: str, analysis_mode: str):
@@ -110,6 +111,7 @@ def build_audit(
     }
     scanned.update(build_repository_intelligence(scanned, profile_id=profile_id))
     scanned["devops_readiness"] = build_devops_readiness(scanned, profile_id=profile_id)
+    scanned["architecture_assessment"] = build_architecture_assessment(scanned)
     devops_recommendations = scanned["devops_readiness"].get("recommendations", [])
     if isinstance(devops_recommendations, list):
         existing = scanned.get("recommendations_v2", [])

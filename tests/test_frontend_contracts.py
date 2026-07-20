@@ -83,3 +83,17 @@ def test_frontend_advisor_panel_renders_ai_advisor():
 def test_frontend_app_passes_ai_advisor_to_panel():
     app = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     assert "aiAdvisor={data.ai_advisor}" in app
+
+
+def test_frontend_architecture_contract_and_panel_exist():
+    types = Path("frontend/src/types/api.ts").read_text(encoding="utf-8")
+    panel = Path("frontend/src/components/ArchitecturePanel.tsx").read_text(encoding="utf-8")
+    app = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
+
+    assert "export interface ArchitectureAssessment" in types
+    assert "export interface RiskHotspot" in types
+    assert "architecture_assessment?: ArchitectureAssessment" in types
+    assert "Static map and risk hotspots" in panel
+    assert "Dependency Evidence" in panel
+    assert "Top risk hotspots" in panel
+    assert "ArchitecturePanel assessment={data.audit.architecture_assessment}" in app

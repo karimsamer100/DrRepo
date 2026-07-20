@@ -232,6 +232,90 @@ export interface DevOpsReadiness {
   recommendations?: StructuredRecommendation[]
 }
 
+export interface ArchitectureEvidence {
+  path: string
+  reason: string
+  detail?: string | null
+}
+
+export interface ArchitectureNode {
+  id: string
+  label: string
+  kind: string
+  path: string
+  language: string
+  layer: string
+  symbols?: string[]
+  confidence?: string
+  evidence?: ArchitectureEvidence[]
+  metrics?: Record<string, unknown>
+  risk?: Record<string, unknown>
+}
+
+export interface ArchitectureEdge {
+  source: string
+  target: string
+  kind: string
+  confidence?: string
+  evidence?: ArchitectureEvidence[]
+}
+
+export interface ArchitectureLayer {
+  id: string
+  label: string
+  node_ids: string[]
+  confidence?: string
+  evidence?: ArchitectureEvidence[]
+}
+
+export interface ArchitectureCycle {
+  id: string
+  node_ids: string[]
+  paths: string[]
+  classification: string
+  confidence?: string
+  evidence?: ArchitectureEvidence[]
+}
+
+export interface RiskFactor {
+  id: string
+  label: string
+  contribution: number
+  evidence?: string[]
+}
+
+export interface RiskHotspot {
+  id: string
+  rank: number
+  node_id: string
+  path: string
+  title: string
+  risk_score: number
+  risk_level: string
+  confidence?: string
+  factors: RiskFactor[]
+  findings?: ToolFinding[]
+  test_status?: string
+  why_it_matters?: string
+  recommended_action?: string
+  success_check?: string
+}
+
+export interface ArchitectureAssessment {
+  status: string
+  confidence: string
+  summary: string
+  nodes: ArchitectureNode[]
+  edges: ArchitectureEdge[]
+  layers: ArchitectureLayer[]
+  entry_points: Array<{ node_id?: string; path?: string; kind?: string; confidence?: string }>
+  external_integrations: Array<{ name?: string; kind?: string; confidence?: string; evidence?: ArchitectureEvidence[] }>
+  cycles: ArchitectureCycle[]
+  hotspots: RiskHotspot[]
+  evidence_gaps: string[]
+  limitations: string[]
+}
+
 export interface AuditMetadata {
   total_files?: number
   total_directories?: number
@@ -277,6 +361,7 @@ export interface Audit {
   project_understanding?: ProjectUnderstanding
   executive_report?: ExecutiveReport
   devops_readiness?: DevOpsReadiness
+  architecture_assessment?: ArchitectureAssessment
   remediation_summary?: {
     total?: number
     by_severity?: Record<string, number>

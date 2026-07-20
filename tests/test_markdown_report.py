@@ -252,3 +252,38 @@ def test_markdown_grounding_rejected_shown():
     assert "**Grounding**: rejected" in md
     assert "Fallback reason" in md
     assert "unknown evidence reference" in md
+
+
+def test_markdown_includes_architecture_overview_and_hotspots():
+    audit = {
+        "architecture_assessment": {
+            "status": "completed",
+            "confidence": "high",
+            "summary": "Static evidence suggests app/routes.py imports app/service.py.",
+            "entry_points": [{"kind": "api_route", "path": "app/routes.py", "confidence": "high"}],
+            "layers": [{"id": "API/interface", "label": "API / Interface", "node_ids": ["node:app.routes"], "confidence": "high"}],
+            "external_integrations": [{"name": "fastapi"}],
+            "cycles": [{"id": "cycle:1", "classification": "likely architectural cycle", "paths": ["app/a.py", "app/b.py"]}],
+            "evidence_gaps": ["Coverage file mapping was unavailable."],
+            "hotspots": [
+                {
+                    "rank": 1,
+                    "path": "app/service.py",
+                    "risk_level": "medium",
+                    "risk_score": 42,
+                    "confidence": "high",
+                    "test_status": "no_associated_test_evidence",
+                    "why_it_matters": "Central service.",
+                    "recommended_action": "Add focused tests.",
+                    "factors": [{"id": "centrality", "label": "Central dependency position", "contribution": 12}],
+                }
+            ],
+        }
+    }
+
+    md = render_markdown_report(audit)
+
+    assert "## Architecture Overview" in md
+    assert "## Top Risk Hotspots" in md
+    assert "app/service.py" in md
+    assert "Central dependency position: +12" in md

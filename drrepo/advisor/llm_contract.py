@@ -13,6 +13,9 @@ ADVISOR_ACTION_REQUIRED_FIELDS = ("title", "why_it_matters", "evidence", "sugges
 MAX_PAYLOAD_FINDINGS = 8
 MAX_PAYLOAD_BLOCKERS = 6
 MAX_PAYLOAD_RECOMMENDATIONS = 8
+MAX_PAYLOAD_ARCHITECTURE_NODES = 10
+MAX_PAYLOAD_ARCHITECTURE_HOTSPOTS = 5
+MAX_PAYLOAD_ARCHITECTURE_CYCLES = 3
 MAX_PAYLOAD_EXCERPT_CHARS = 240
 MAX_SERIALIZED_PAYLOAD_CHARS = 100_000
 
@@ -262,6 +265,60 @@ def _collect_recommendations(audit: Dict[str, Any], max_recs: int = MAX_PAYLOAD_
     return recs[:max_recs]
 
 
+def _collect_architecture_evidence(audit: Dict[str, Any]) -> Dict[str, Any]:
+    architecture = _as_dict(audit.get("architecture_assessment"))
+    nodes: List[Dict[str, Any]] = []
+    for node in _as_list(architecture.get("nodes"))[:MAX_PAYLOAD_ARCHITECTURE_NODES]:
+        if not isinstance(node, dict):
+            continue
+        nodes.append({
+            "id": _safe_str(node.get("id")),
+            "path": _safe_str(node.get("path")),
+            "kind": _safe_str(node.get("kind")),
+            "layer": _safe_str(node.get("layer")),
+            "confidence": _safe_str(node.get("confidence")),
+        })
+    hotspots: List[Dict[str, Any]] = []
+    for hotspot in _as_list(architecture.get("hotspots"))[:MAX_PAYLOAD_ARCHITECTURE_HOTSPOTS]:
+        if not isinstance(hotspot, dict):
+            continue
+        factors = []
+        for factor in _as_list(hotspot.get("factors"))[:5]:
+            if isinstance(factor, dict):
+                factors.append({
+                    "id": _safe_str(factor.get("id")),
+                    "label": _safe_str(factor.get("label")),
+                    "contribution": factor.get("contribution") if isinstance(factor.get("contribution"), int) else None,
+                })
+        hotspots.append({
+            "id": _safe_str(hotspot.get("id")),
+            "node_id": _safe_str(hotspot.get("node_id")),
+            "path": _safe_str(hotspot.get("path")),
+            "risk_score": hotspot.get("risk_score") if isinstance(hotspot.get("risk_score"), int) else None,
+            "risk_level": _safe_str(hotspot.get("risk_level")),
+            "test_status": _safe_str(hotspot.get("test_status")),
+            "factors": factors,
+        })
+    cycles: List[Dict[str, Any]] = []
+    for cycle in _as_list(architecture.get("cycles"))[:MAX_PAYLOAD_ARCHITECTURE_CYCLES]:
+        if not isinstance(cycle, dict):
+            continue
+        cycles.append({
+            "id": _safe_str(cycle.get("id")),
+            "paths": [str(path) for path in _as_list(cycle.get("paths"))[:6]],
+            "classification": _safe_str(cycle.get("classification")),
+            "confidence": _safe_str(cycle.get("confidence")),
+        })
+    return {
+        "summary": _bounded_text(architecture.get("summary")),
+        "confidence": _safe_str(architecture.get("confidence")),
+        "important_nodes": nodes,
+        "top_hotspots": hotspots,
+        "cycles": cycles,
+        "evidence_gaps": [str(item) for item in _as_list(architecture.get("evidence_gaps"))[:4]],
+    }
+
+
 def _enforce_payload_size(payload: Dict[str, Any]) -> Dict[str, Any]:
     """Keep the serialized advisor payload within the v1 hard cap."""
     compact = deepcopy(payload)
@@ -276,6 +333,15 @@ def _enforce_payload_size(payload: Dict[str, Any]) -> Dict[str, Any]:
         if _as_list(evidence.get("devops_blockers")):
             evidence["devops_blockers"] = _as_list(evidence.get("devops_blockers"))[:-1]
             continue
+        architecture = _as_dict(evidence.get("architecture"))
+        if _as_list(architecture.get("important_nodes")):
+            architecture["important_nodes"] = _as_list(architecture.get("important_nodes"))[:-1]
+            evidence["architecture"] = architecture
+            continue
+        if _as_list(architecture.get("top_hotspots")):
+            architecture["top_hotspots"] = _as_list(architecture.get("top_hotspots"))[:-1]
+            evidence["architecture"] = architecture
+            continue
         compact["payload_truncated"] = True
         compact["bounded_evidence"] = {
             "top_findings": [],
@@ -283,6 +349,7 @@ def _enforce_payload_size(payload: Dict[str, Any]) -> Dict[str, Any]:
             "devops_blockers": [],
             "project_identity": evidence.get("project_identity", {}),
             "deterministic_recommendations": [],
+            "architecture": {},
         }
         break
     return compact
@@ -364,6 +431,7 @@ def build_llm_advisor_payload(
         "devops_blockers": _collect_devops_blockers(audit_copy),
         "project_identity": _collect_project_identity(audit_copy),
         "deterministic_recommendations": _collect_recommendations(audit_copy),
+        "architecture": _collect_architecture_evidence(audit_copy),
     }
 
     payload: Dict[str, Any] = {

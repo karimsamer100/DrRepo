@@ -76,6 +76,17 @@ def _sample_audit() -> dict[str, object]:
                 "success_check": "pytest passes",
             }
         ],
+        "architecture_assessment": {
+            "nodes": [
+                {"id": "node:src.main", "path": "src/main.py", "kind": "api_route", "layer": "API/interface"},
+            ],
+            "hotspots": [
+                {"id": "hotspot:node:src.main", "node_id": "node:src.main", "path": "src/main.py", "risk_score": 20, "risk_level": "low"},
+            ],
+            "cycles": [
+                {"id": "cycle:1", "paths": ["src/main.py"], "classification": "insufficient evidence"},
+            ],
+        },
     }
 
 
@@ -432,3 +443,57 @@ def test_audit_root_absolute_suffix_is_stripped():
     audit_root = "C:/projects/example"
     assert normalize_evidence_path("C:/projects/example/src/main.py", audit_root) == "src/main.py"
     assert normalize_evidence_path("C:/projects/example/src/main.py", "C:/other") is None
+
+
+def test_architecture_references_are_grounded():
+    audit = _sample_audit()
+    index = build_evidence_index(audit)
+    response = {
+        "summary": "x",
+        "profile_context": "x",
+        "top_priorities": [
+            {
+                "title": "Review architecture hotspot",
+                "why_it_matters": "x",
+                "evidence": ["node:src.main", "hotspot:node:src.main", "cycle:1"],
+                "suggested_fix": "x",
+                "priority": "medium",
+            }
+        ],
+        "lower_priority_items": [],
+        "limitations": [],
+        "next_steps": [],
+    }
+
+    result = validate_grounding(response, index)
+
+    assert result["valid"] is True
+    assert result["validated_references"] >= 3
+
+
+def test_unknown_architecture_references_are_rejected():
+    audit = _sample_audit()
+    index = build_evidence_index(audit)
+    response = {
+        "summary": "x",
+        "profile_context": "x",
+        "top_priorities": [
+            {
+                "title": "Review invented architecture hotspot",
+                "why_it_matters": "x",
+                "evidence": ["node:missing", "hotspot:node:missing", "cycle:99"],
+                "suggested_fix": "x",
+                "priority": "medium",
+            }
+        ],
+        "lower_priority_items": [],
+        "limitations": [],
+        "next_steps": [],
+    }
+
+    result = validate_grounding(response, index)
+
+    assert result["valid"] is False
+    assert "unknown_architecture_node_id" in result["violation_codes"]
+    assert "unknown_hotspot_id" in result["violation_codes"]
+    assert "unknown_cycle_id" in result["violation_codes"]

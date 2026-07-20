@@ -86,6 +86,28 @@ def _sample_audit() -> dict[str, object]:
                 "success_check": "pytest passes",
             }
         ],
+        "architecture_assessment": {
+            "summary": "app/service.py imports app/repository.py",
+            "confidence": "high",
+            "nodes": [
+                {"id": "node:app.service", "path": "app/service.py", "kind": "service", "layer": "application/service", "confidence": "high"},
+            ],
+            "hotspots": [
+                {
+                    "id": "hotspot:node:app.service",
+                    "node_id": "node:app.service",
+                    "path": "app/service.py",
+                    "risk_score": 42,
+                    "risk_level": "medium",
+                    "test_status": "no_associated_test_evidence",
+                    "factors": [{"id": "centrality", "label": "Central dependency position", "contribution": 12}],
+                }
+            ],
+            "cycles": [
+                {"id": "cycle:1", "paths": ["app/service.py", "app/repository.py"], "classification": "likely architectural cycle", "confidence": "medium"}
+            ],
+            "evidence_gaps": ["Coverage file mapping was unavailable."],
+        },
     }
 
 
@@ -208,3 +230,16 @@ def test_payload_devops_blocker_ids_present():
     payload = build_llm_advisor_payload(audit, _sample_plan())
     blocker_ids = [b["id"] for b in payload["bounded_evidence"]["devops_blockers"]]
     assert "NO-CI" in blocker_ids
+
+
+def test_payload_architecture_evidence_is_bounded_and_grounded():
+    audit = _sample_audit()
+    payload = build_llm_advisor_payload(audit, _sample_plan())
+    architecture = payload["bounded_evidence"]["architecture"]
+
+    assert architecture["summary"]
+    assert architecture["important_nodes"][0]["id"] == "node:app.service"
+    assert architecture["top_hotspots"][0]["id"] == "hotspot:node:app.service"
+    assert architecture["cycles"][0]["id"] == "cycle:1"
+    assert len(architecture["important_nodes"]) <= 10
+    assert len(architecture["top_hotspots"]) <= 5
