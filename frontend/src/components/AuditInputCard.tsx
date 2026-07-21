@@ -3,7 +3,7 @@ import type { AnalysisMode, CapabilitiesResponse, IsolatedOptions, ProfileInfo, 
 import { listProfiles } from '../api/client'
 import type { RecentAudit } from '../lib/recentAudits'
 import { RecentAudits } from './RecentAudits'
-import { sourceTypeLabel } from '../lib/presentation'
+import { AdvancedAuditSettings, ANALYSIS_MODE_LABELS } from './AdvancedAuditSettings'
 
 interface AuditInputCardProps {
   onSubmit: (
@@ -28,8 +28,8 @@ const EXAMPLE_BAD_PATH = 'examples/sample_bad_repo'
 const EXAMPLE_GITHUB_URL = 'https://github.com/pypa/sampleproject'
 
 const SOURCE_LABELS: Record<SourceType, string> = {
-  local_path: 'Local path',
-  github_url: 'GitHub URL',
+  local_path: 'Local repository',
+  github_url: 'Public GitHub repository',
 }
 
 const SOURCE_PLACEHOLDERS: Record<SourceType, string> = {
@@ -82,6 +82,12 @@ export function AuditInputCard({
   const apiUnreachable = !!profilesError
   const dockerSupported = !!capabilities?.docker_isolated_execution?.supported
   const canSubmit = sourceValue.trim().length > 0 && !disabled && !apiUnreachable && (analysisMode !== 'deep_isolated' || dockerSupported)
+  const recommendedMode: AnalysisMode = sourceType === 'github_url' ? 'quick_safe' : 'deep_local'
+  const selectedProfile = profiles.find((profile) => profile.profile_id === profileId)
+  const isRecommendedMode = analysisMode === recommendedMode
+  const submitLabel = isRecommendedMode
+    ? 'Run recommended audit'
+    : `Run ${ANALYSIS_MODE_LABELS[analysisMode]} audit`
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
@@ -127,7 +133,7 @@ export function AuditInputCard({
 
   const selectSourceType = (mode: SourceType) => {
     setSourceType(mode)
-    if (mode === 'github_url' && analysisMode === 'deep_local') setAnalysisMode('quick_safe')
+    setAnalysisMode(mode === 'github_url' ? 'quick_safe' : 'deep_local')
     setSourceValue('')
   }
 
@@ -149,8 +155,8 @@ export function AuditInputCard({
         <div className="rounded-2xl border border-border bg-surface/80 p-4 text-xs text-muted lg:w-72">
           <div className="font-medium text-primary">What happens next</div>
           <p className="mt-1 leading-5">
-            The API scans the source, records what was verified, and returns JSON plus
-            an optional Markdown report.
+            DrRepo scans the source, records what it could verify, and returns the
+            verdict plus the first actions to take.
           </p>
         </div>
       </div>
@@ -171,11 +177,10 @@ export function AuditInputCard({
 
           <div className="space-y-5">
             <div>
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <label id="source-mode-label" className="text-xs font-medium uppercase tracking-[0.16em] text-faint">
-                  Source mode
+              <div className="mb-2">
+                <label id="source-mode-label" className="text-xs font-medium text-faint">
+                  Where is the repository?
                 </label>
-                <span className="text-[11px] text-faint">{sourceTypeLabel(sourceType)}</span>
               </div>
               <div
                 className="grid grid-cols-2 rounded-xl border border-border bg-base p-1"
@@ -198,99 +203,6 @@ export function AuditInputCard({
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div>
-              <label id="analysis-mode-label" className="mb-2 block text-xs font-medium uppercase tracking-[0.16em] text-faint">
-                Analysis mode
-              </label>
-              <div className="grid gap-2 sm:grid-cols-3" role="group" aria-labelledby="analysis-mode-label">
-                <button
-                  type="button"
-                  aria-pressed={analysisMode === 'quick_safe'}
-                  onClick={() => setAnalysisMode('quick_safe')}
-                  className={`rounded-xl border p-3 text-left transition-colors ${
-                    analysisMode === 'quick_safe'
-                      ? 'border-brand/30 bg-brand/10 text-brand'
-                      : 'border-border bg-base text-muted hover:text-primary'
-                  }`}
-                >
-                  <span className="block text-sm font-semibold">Quick Safe</span>
-                  <span className="mt-1 block text-xs leading-5 text-faint">No target code execution. Safe for public GitHub URLs.</span>
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={analysisMode === 'deep_local'}
-                  disabled={sourceType === 'github_url'}
-                  onClick={() => setAnalysisMode('deep_local')}
-                  className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                    analysisMode === 'deep_local'
-                      ? 'border-warning/30 bg-warning/10 text-warning'
-                      : 'border-border bg-base text-muted hover:text-primary'
-                  }`}
-                >
-                  <span className="block text-sm font-semibold">Deep Local</span>
-                  <span className="mt-1 block text-xs leading-5 text-faint">Runs pytest and coverage. Project code may execute locally.</span>
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={analysisMode === 'deep_isolated'}
-                  disabled={!dockerSupported}
-                  onClick={() => setAnalysisMode('deep_isolated')}
-                  className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
-                    analysisMode === 'deep_isolated'
-                      ? 'border-warning/30 bg-warning/10 text-warning'
-                      : 'border-border bg-base text-muted hover:text-primary'
-                  }`}
-                >
-                  <span className="block text-sm font-semibold">Deep Isolated</span>
-                  <span className="mt-1 block text-xs leading-5 text-faint">Runs tests inside Docker. Explicit opt-in for local or GitHub.</span>
-                </button>
-              </div>
-              {analysisMode === 'deep_local' && (
-                <p className="mt-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning">
-                  Deep Local can execute target repository code through pytest/coverage. Use it only for local repositories you trust.
-                </p>
-              )}
-              {sourceType === 'github_url' && (
-                <p className="mt-2 text-xs leading-5 text-faint">
-                  GitHub URL audits default to Quick Safe. Deep Isolated is available only when the DrRepo Docker runner is prepared.
-                </p>
-              )}
-              {analysisMode === 'deep_isolated' && (
-                <div className="mt-2 space-y-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning">
-                  <p>
-                    Deep Isolated executes supported verification inside a disposable DrRepo-controlled Docker container. This is not a production SaaS sandbox.
-                  </p>
-                  <label className="flex items-start gap-2 text-muted">
-                    <input
-                      type="checkbox"
-                      checked={installDependencies}
-                      onChange={(event) => {
-                        setInstallDependencies(event.target.checked)
-                        if (!event.target.checked) setAllowInstallNetwork(false)
-                      }}
-                      className="mt-1 h-3.5 w-3.5 rounded border-border bg-surface-2 text-brand focus:ring-brand/50"
-                    />
-                    Install dependencies inside the container before tests.
-                  </label>
-                  <label className="flex items-start gap-2 text-muted">
-                    <input
-                      type="checkbox"
-                      checked={allowInstallNetwork}
-                      disabled={!installDependencies}
-                      onChange={(event) => setAllowInstallNetwork(event.target.checked)}
-                      className="mt-1 h-3.5 w-3.5 rounded border-border bg-surface-2 text-brand focus:ring-brand/50 disabled:opacity-50"
-                    />
-                    Allow network only during dependency installation.
-                  </label>
-                </div>
-              )}
-              {!dockerSupported && (
-                <p className="mt-2 text-xs leading-5 text-faint">
-                  Deep Isolated unavailable: {capabilities?.docker_isolated_execution?.reason || 'Docker capability has not been confirmed.'}
-                </p>
-              )}
             </div>
 
             <div>
@@ -344,8 +256,8 @@ export function AuditInputCard({
             </div>
 
             <div>
-              <label htmlFor="profileId" className="mb-2 block text-xs font-medium uppercase tracking-[0.16em] text-faint">
-                Advisor profile
+              <label htmlFor="profileId" className="mb-2 block text-xs font-medium text-faint">
+                What are you preparing this project for?
               </label>
               <select
                 id="profileId"
@@ -362,69 +274,52 @@ export function AuditInputCard({
               </select>
               {profilesError && <p className="mt-1.5 text-[11px] text-error">{profilesError}</p>}
               <p className="mt-2 text-xs leading-5 text-faint">
-                The profile changes remediation emphasis only; it does not change repository evidence.
+                {selectedProfile?.description || 'The goal changes remediation emphasis only; repository evidence stays the same.'}
               </p>
             </div>
 
-            <div>
-              <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-base px-3.5 py-3">
-                <input
-                  type="checkbox"
-                  checked={aiEnabled}
-                  disabled={!capabilities?.ai_advisor?.supported}
-                  onChange={(e) => setAiEnabled(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 rounded border-border bg-surface-2 text-brand focus:ring-brand/50 disabled:opacity-50"
-                />
-                <span>
-                  <span className="block text-sm font-medium text-primary">
-                    AI Advisor
-                    {capabilities?.ai_advisor?.supported && capabilities?.ai_advisor?.provider_configured && (
-                      <span className="ml-2 rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-[10px] font-normal text-brand">
-                        available
-                      </span>
-                    )}
-                  </span>
-                  <span className="block text-xs leading-5 text-faint">
-                    Use a configured third-party provider to turn the audit into prioritized guidance.
-                  </span>
-                </span>
-              </label>
-              {aiEnabled && (
-                <p className="mt-2 rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs leading-5 text-warning">
-                  {capabilities?.ai_advisor?.privacy_note ||
-                    'AI mode sends a bounded, redacted summary of the audit evidence to a provider. Only enable if you accept that.'}
-                </p>
-              )}
-              {!capabilities?.ai_advisor?.supported && (
-                <p className="mt-2 text-xs leading-5 text-faint">
-                  AI advisor is not advertised by this API build.
+            <div className="rounded-xl border border-brand/20 bg-brand/5 px-4 py-3">
+              <div className="text-sm font-semibold text-primary">
+                Recommended audit: {ANALYSIS_MODE_LABELS[recommendedMode]}
+              </div>
+              <p className="mt-1 text-xs leading-5 text-muted">
+                {sourceType === 'local_path'
+                  ? 'Runs tests and coverage for a local repository you trust.'
+                  : 'Analyzes the repository without running its tests.'}
+              </p>
+              {!isRecommendedMode && (
+                <p className="mt-2 text-xs text-brand">
+                  Current selection: {ANALYSIS_MODE_LABELS[analysisMode]}
                 </p>
               )}
             </div>
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-base px-3.5 py-3">
-              <input
-                type="checkbox"
-                checked={includeMarkdown}
-                onChange={(e) => setIncludeMarkdown(e.target.checked)}
-                className="mt-0.5 h-4 w-4 rounded border-border bg-surface-2 text-brand focus:ring-brand/50"
-              />
-              <span>
-                <span className="block text-sm font-medium text-primary">Include Markdown report</span>
-                <span className="block text-xs leading-5 text-faint">
-                  Adds a readable report preview and enables Markdown download/copy after the audit.
-                </span>
-              </span>
-            </label>
-          </div>
+            <button
+              type="submit"
+              disabled={!canSubmit}
+              className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-base shadow shadow-brand/20 transition-colors duration-150 ease-out-strong hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand/50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              {submitLabel}
+            </button>
 
-          <button
-            type="submit"
-            disabled={!canSubmit}
-            className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-base shadow shadow-brand/20 transition-colors duration-150 ease-out-strong hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand/50 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            Run diagnostic
-          </button>
+            <AdvancedAuditSettings
+              sourceType={sourceType}
+              analysisMode={analysisMode}
+              onAnalysisModeChange={setAnalysisMode}
+              aiEnabled={aiEnabled}
+              onAiEnabledChange={setAiEnabled}
+              includeMarkdown={includeMarkdown}
+              onIncludeMarkdownChange={setIncludeMarkdown}
+              installDependencies={installDependencies}
+              onInstallDependenciesChange={(enabled) => {
+                setInstallDependencies(enabled)
+                if (!enabled) setAllowInstallNetwork(false)
+              }}
+              allowInstallNetwork={allowInstallNetwork}
+              onAllowInstallNetworkChange={setAllowInstallNetwork}
+              capabilities={capabilities}
+            />
+          </div>
         </form>
 
         <div className="space-y-6 lg:col-span-1">
@@ -458,23 +353,41 @@ export function AuditInputCard({
               </p>
             ) : capabilities ? (
               <>
-                <p className="text-xs leading-5 text-muted">
-                  {capabilities.analyzers.filter((a) => a.available).length} of {capabilities.analyzers.length} analyzers available.
-                </p>
+                <div className="space-y-2 text-xs leading-5">
+                  <p className="text-primary">
+                    <span className="font-mono text-brand">{capabilities.analyzers.filter((a) => a.available).length}</span> of{' '}
+                    <span className="font-mono">{capabilities.analyzers.length}</span> analyzers ready
+                  </p>
+                  <p className={dockerSupported ? 'text-health' : 'text-faint'}>
+                    Docker isolated runner {dockerSupported ? 'ready' : 'unavailable'}
+                  </p>
+                  <p className={capabilities.ai_advisor?.provider_configured ? 'text-health' : 'text-faint'}>
+                    AI advisor {capabilities.ai_advisor?.provider_configured ? 'available' : 'unavailable'}
+                  </p>
+                </div>
                 {missingAnalyzers.length > 0 && (
                   <p className="mt-2 text-xs leading-5 text-faint">
                     Missing optional tools limit confidence: {missingAnalyzers.map((a) => a.analyzer_id).join(', ')}.
                   </p>
                 )}
-                {capabilities.setup.install_command && (
-                  <code className="mt-3 block break-all rounded-lg border border-border bg-base p-2 font-mono text-[10px] text-faint">
-                    {capabilities.setup.install_command}
-                  </code>
-                )}
-                {capabilities.docker_isolated_execution.setup_command && (
-                  <code className="mt-3 block break-all rounded-lg border border-border bg-base p-2 font-mono text-[10px] text-faint">
-                    {capabilities.docker_isolated_execution.setup_command}
-                  </code>
+                {(capabilities.setup.install_command || capabilities.docker_isolated_execution.setup_command) && (
+                  <details className="mt-3 rounded-lg border border-border bg-base px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-medium text-muted transition-colors hover:text-primary">
+                      Setup details
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      {capabilities.setup.install_command && (
+                        <code className="block break-all font-mono text-[10px] leading-5 text-faint">
+                          {capabilities.setup.install_command}
+                        </code>
+                      )}
+                      {capabilities.docker_isolated_execution.setup_command && (
+                        <code className="block break-all font-mono text-[10px] leading-5 text-faint">
+                          {capabilities.docker_isolated_execution.setup_command}
+                        </code>
+                      )}
+                    </div>
+                  </details>
                 )}
               </>
             ) : (

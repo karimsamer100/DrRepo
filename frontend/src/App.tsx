@@ -12,6 +12,7 @@ import { MetadataCard } from './components/MetadataCard'
 import { ExportActions } from './components/ExportActions'
 import { DevOpsReadinessPanel } from './components/DevOpsReadinessPanel'
 import { ArchitecturePanel } from './components/ArchitecturePanel'
+import { ResultNavigation, type ResultView } from './components/ResultNavigation'
 import { useAudit } from './state/useAudit'
 import type { RecentAudit } from './lib/recentAudits'
 import {
@@ -20,40 +21,94 @@ import {
   loadRecentAudits,
 } from './lib/recentAudits'
 import { classifyError } from './lib/presentation'
+import { getFindingFamilies } from './lib/score'
 import { getCapabilities } from './api/client'
 import type { AuditResponse, CapabilitiesResponse } from './types/api'
 
-function ResultLayout({ data }: { data: AuditResponse }) {
+function ResultLayout({
+  data,
+  activeView,
+  onViewChange,
+}: {
+  data: AuditResponse
+  activeView: ResultView
+  onViewChange: (view: ResultView) => void
+}) {
   const analyzerSections = {
     static_analysis: data.audit.static_analysis,
     test_analysis: data.audit.test_analysis,
     repository_analysis: data.audit.repository_analysis,
   }
+  const findingCount = getFindingFamilies(data.audit).reduce((total, family) => total + family.count, 0)
+  const actionCount = data.audit.recommendations_v2?.length || 0
+  const architectureCount = data.audit.architecture_assessment?.hotspots?.length || 0
+  const devopsCount = data.audit.devops_readiness?.blockers?.length || 0
+
+  const renderActiveView = () => {
+    switch (activeView) {
+      case 'actions':
+        return (
+          <AdvisorPanel
+            advisor={data.advisor}
+            aiAdvisor={data.ai_advisor}
+            profileId={data.profile_id}
+            recommendations={data.audit.recommendations_v2}
+          />
+        )
+      case 'findings':
+        return <FindingsList audit={data.audit} />
+      case 'devops':
+        return <DevOpsReadinessPanel readiness={data.audit.devops_readiness} />
+      case 'architecture':
+        return <ArchitecturePanel assessment={data.audit.architecture_assessment} />
+      case 'evidence':
+        return (
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
+            <div className="min-w-0 space-y-5">
+              {data.audit.diagnosis?.evidence_confidence && (
+                <section className="rounded-2xl border border-border bg-surface p-4">
+                  <h2 className="text-sm font-semibold text-primary">Evidence confidence</h2>
+                  <p className="mt-2 text-sm leading-6 text-muted">
+                    {data.audit.diagnosis.evidence_confidence.summary ||
+                      `Confidence is ${data.audit.diagnosis.evidence_confidence.label || 'unknown'} based on completed and limited analyzers.`}
+                  </p>
+                </section>
+              )}
+              <AnalyzerStatusGrid sections={analyzerSections} />
+              <MetadataCard
+                metadata={data.audit.metadata}
+                dependencyEnvironment={data.audit.dependency_environment}
+                projectUnderstanding={data.audit.project_understanding}
+              />
+            </div>
+            <aside className="min-w-0 space-y-5 lg:sticky lg:top-20">
+              <ExportActions data={data} />
+              <MarkdownPreview content={data.markdown} />
+            </aside>
+          </div>
+        )
+      case 'overview':
+      default:
+        return <ResultOverview data={data} onNavigate={onViewChange} />
+    }
+  }
 
   return (
-    <div className="grid gap-6 pb-12 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-      <div className="min-w-0 space-y-6">
-        <ResultOverview data={data} />
-        <ArchitecturePanel assessment={data.audit.architecture_assessment} />
-        <DevOpsReadinessPanel readiness={data.audit.devops_readiness} />
-        <FindingsList audit={data.audit} />
-        <AdvisorPanel
-          advisor={data.advisor}
-          aiAdvisor={data.ai_advisor}
-          profileId={data.profile_id}
-          recommendations={data.audit.recommendations_v2}
-        />
+    <div className="pb-12">
+      <ResultNavigation
+        activeView={activeView}
+        onViewChange={onViewChange}
+        counts={{ actions: actionCount, findings: findingCount, devops: devopsCount, architecture: architectureCount }}
+      />
+      <div
+        id={`result-panel-${activeView}`}
+        role="tabpanel"
+        aria-labelledby={`result-tab-${activeView}`}
+        tabIndex={0}
+        className="min-w-0 animate-fade-up"
+      >
+        {renderActiveView()}
       </div>
-      <aside className="min-w-0 space-y-5 lg:sticky lg:top-6">
-        <AnalyzerStatusGrid sections={analyzerSections} />
-        <MetadataCard
-          metadata={data.audit.metadata}
-          dependencyEnvironment={data.audit.dependency_environment}
-          projectUnderstanding={data.audit.project_understanding}
-        />
-        <ExportActions data={data} />
-        <MarkdownPreview content={data.markdown} />
-      </aside>
     </div>
   )
 }
@@ -63,6 +118,7 @@ export default function App() {
   const [recentAudits, setRecentAudits] = useState<RecentAudit[]>([])
   const [capabilities, setCapabilities] = useState<CapabilitiesResponse | null>(null)
   const [capabilityError, setCapabilityError] = useState<string | null>(null)
+  const [activeResultView, setActiveResultView] = useState<ResultView>('overview')
 
   useEffect(() => {
     setRecentAudits(loadRecentAudits())
@@ -103,6 +159,12 @@ export default function App() {
     }
 
     setRecentAudits((current) => addRecentAudit(current, item))
+  }, [state.status, state.data])
+
+  useEffect(() => {
+    if (state.status === 'loading' || state.status === 'done') {
+      setActiveResultView('overview')
+    }
   }, [state.status, state.data])
 
   const handleClearRecent = () => {
@@ -206,7 +268,11 @@ export default function App() {
                     {state.data.source_value}
                   </p>
                 </div>
-                <ResultLayout data={state.data} />
+                <ResultLayout
+                  data={state.data}
+                  activeView={activeResultView}
+                  onViewChange={setActiveResultView}
+                />
               </>
             )}
           </div>
