@@ -58,3 +58,4 @@ class CapabilitiesResponse(BaseModel):
     remote_execution_safety_policy: str
     setup: dict[str, Any]
     ai_advisor: dict[str, Any] | None = None
+    local_path: dict[str, Any] | None = None

@@ -75,7 +75,7 @@ def test_frontend_use_audit_sends_actual_ai_value():
 def test_frontend_advisor_panel_renders_ai_advisor():
     panel = Path("frontend/src/components/AdvisorPanel.tsx").read_text(encoding="utf-8")
     assert "aiAdvisor" in panel
-    assert "AI advisor guidance" in panel
+    assert "AI advisor annotation" in panel
     assert "AI-generated" in panel
     assert "Deterministic fallback" in panel
     assert "Grounding:" in panel
@@ -152,10 +152,10 @@ def test_launcher_right_rail_preserves_flow_capabilities_setup_and_reruns():
     assert "Rerun shortcuts" in recent
 
 
-def test_result_navigation_exposes_six_accessible_views():
+def test_result_navigation_exposes_four_accessible_views():
     navigation = Path("frontend/src/components/ResultNavigation.tsx").read_text(encoding="utf-8")
 
-    for label in ("Overview", "Actions", "Findings", "DevOps", "Architecture", "Evidence"):
+    for label in ("Summary", "Fix Plan", "Issues", "Technical Details"):
         assert f"label: '{label}'" in navigation
     assert 'role="tablist"' in navigation
     assert 'role="tab"' in navigation
@@ -168,20 +168,19 @@ def test_result_views_compose_existing_panels_without_rerunning_audit():
     app = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
     navigation = Path("frontend/src/components/ResultNavigation.tsx").read_text(encoding="utf-8")
 
-    assert "useState<ResultView>('overview')" in app
-    assert "case 'actions':" in app
-    assert "case 'findings':" in app
-    assert "case 'devops':" in app
-    assert "case 'architecture':" in app
-    assert "case 'evidence':" in app
-    assert "<AdvisorPanel" in app[app.index("case 'actions':"):app.index("case 'findings':")]
-    assert "<DevOpsReadinessPanel" in app[app.index("case 'devops':"):app.index("case 'architecture':")]
-    assert "<ArchitecturePanel" in app[app.index("case 'architecture':"):app.index("case 'evidence':")]
-    evidence_view = app[app.index("case 'evidence':"):app.index("case 'overview':")]
-    assert "<AnalyzerStatusGrid" in evidence_view
-    assert "<MetadataCard" in evidence_view
-    assert "<ExportActions" in evidence_view
-    assert "<MarkdownPreview" in evidence_view
+    assert "useState<ResultView>('summary')" in app
+    assert "case 'fix_plan':" in app
+    assert "case 'issues':" in app
+    assert "case 'technical_details':" in app
+    assert "case 'summary':" in app
+    assert "<AdvisorPanel" in app[app.index("case 'fix_plan':"):app.index("case 'issues':")]
+    technical_view = app[app.index("case 'technical_details':"):app.index("case 'summary':")]
+    assert "<DevOpsReadinessPanel" in technical_view
+    assert "<ArchitecturePanel" in technical_view
+    assert "<AnalyzerStatusGrid" in technical_view
+    assert "<MetadataCard" in technical_view
+    assert "<ExportActions" in technical_view
+    assert "<MarkdownPreview" in technical_view
     assert "runAudit" not in navigation
     assert "execute(" not in navigation
 
@@ -190,17 +189,16 @@ def test_new_audit_resets_result_view_to_overview():
     app = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 
     assert "if (state.status === 'loading' || state.status === 'done')" in app
-    assert "setActiveResultView('overview')" in app
+    assert "setActiveResultView('summary')" in app
 
 
 def test_overview_is_compact_and_links_to_deeper_sections():
     overview = Path("frontend/src/components/ResultOverview.tsx").read_text(encoding="utf-8")
 
-    assert "What matters first" in overview
+    assert "Recommended next move" in overview
     assert "Project identity" in overview
-    assert "Top recommended actions" in overview
-    assert "Evidence coverage" in overview
-    assert "DevOps readiness" in overview
-    assert "Open architecture" in overview
-    assert "Review findings" in overview
+    assert "What DrRepo checked" in overview
+    assert "Open full fix plan" in overview
+    assert "Review issues" in overview
+    assert "View technical details" in overview
     assert "Category scores" not in overview

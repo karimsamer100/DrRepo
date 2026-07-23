@@ -61,19 +61,19 @@ def test_pytest_error_sets_distinct_flag():
 def test_security_flag_from_bandit():
     audit = {"static_analysis": [{"tool": "bandit", "status": "completed", "findings": [{"severity": "medium"}]}]}
     d = build_diagnosis(audit)
-    assert "SECURITY_FINDINGS_PRESENT" in d["hard_flags"]
+    assert "SECURITY_FINDINGS_PRESENT" not in d["hard_flags"]
 
 
 def test_readme_incomplete_flag():
     audit = {"repository_analysis": [{"tool": "readme", "status": "completed", "findings": [{"code": "README-MISSING"}]}]}
     d = build_diagnosis(audit)
-    assert "README_INCOMPLETE" in d["hard_flags"]
+    assert "README_INCOMPLETE" not in d["hard_flags"]
 
 
 def test_structure_incomplete_flag():
     audit = {"repository_analysis": [{"tool": "structure", "status": "completed", "findings": [{"code": "STRUCTURE-MISSING-TESTS"}]}]}
     d = build_diagnosis(audit)
-    assert "STRUCTURE_INCOMPLETE" in d["hard_flags"]
+    assert "STRUCTURE_INCOMPLETE" not in d["hard_flags"]
 
 
 def test_optional_analyzer_errors_are_limitations_not_hard_flags():
@@ -93,8 +93,8 @@ def test_core_analyzer_error_can_be_hard_flag():
 def test_deduplication_order():
     audit = {"static_analysis": [{"tool": "bandit", "status": "completed", "findings": [{"severity": "medium"}]}, {"tool": "bandit", "status": "completed", "findings": [{"severity": "medium"}]}], "test_analysis": [{"tool": "pytest", "status": "completed", "findings": [{"code": "PYTEST-FAILED"}]}]}
     d = build_diagnosis(audit)
-    # order should be first seen: SECURITY_FINDINGS_PRESENT then TESTS_FAILING
-    assert d["hard_flags"][0] == "SECURITY_FINDINGS_PRESENT"
+    # Medium Bandit findings are not hard flags; confirmed failing tests remain.
+    assert d["hard_flags"][0] == "TESTS_FAILING"
     assert "TESTS_FAILING" in d["hard_flags"]
     # limitations dedup
     audit2 = {"static_analysis": [{"tool": "ruff", "status": "not_available"}, {"tool": "bandit", "status": "not_available"}]}
@@ -123,8 +123,9 @@ def test_readme_and_structure_flags_cap_high_scores_to_needs_attention():
         ],
     }
     d = build_diagnosis(audit)
-    assert d["repository_health"]["score"] == 84
-    assert d["repository_health"]["label"] == "needs_attention"
+    assert d["repository_health"]["score"] == 97
+    assert d["repository_health"]["label"] == "healthy"
+    assert d["repository_health"]["claim_strength"] == "limited_verification"
 
 
 def test_evidence_confidence_is_partial_when_optional_tools_are_missing():

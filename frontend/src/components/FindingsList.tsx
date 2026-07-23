@@ -41,7 +41,20 @@ function buildCodeGroups(
   return groups
 }
 
-const FILTERS = ['all', 'critical', 'high', 'medium', 'low', 'unknown']
+const USER_FILTERS = ['all', 'must_fix', 'important', 'minor']
+const TECHNICAL_FILTERS = ['critical', 'high', 'medium', 'low', 'unknown']
+
+function filterLabel(filter: string): string {
+  return filter.replace(/_/g, ' ')
+}
+
+function matchesUserFilter(severity: string, filter: string): boolean {
+  const normalized = severity.toLowerCase()
+  if (filter === 'all') return true
+  if (filter === 'must_fix') return normalized === 'critical' || normalized === 'high'
+  if (filter === 'important') return normalized === 'medium'
+  return normalized === 'low' || normalized === 'info' || normalized === 'unknown'
+}
 
 export function FindingsList({ audit }: FindingsListProps) {
   const families = getFindingFamilies(audit).filter((f) => f.count > 0)
@@ -62,7 +75,9 @@ export function FindingsList({ audit }: FindingsListProps) {
   }
 
   const visibleFamilies =
-    severityFilter === 'all'
+    USER_FILTERS.includes(severityFilter)
+      ? families.filter((family) => matchesUserFilter(family.severity, severityFilter))
+      : severityFilter === 'all'
       ? families
       : families.filter((family) => family.severity.toLowerCase() === severityFilter)
   const totalFindings = families.reduce((sum, family) => sum + family.count, 0)
@@ -87,8 +102,8 @@ export function FindingsList({ audit }: FindingsListProps) {
         </button>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2" aria-label="Filter findings by severity">
-        {FILTERS.map((filter) => (
+      <div className="mb-3 flex flex-wrap gap-2" aria-label="Filter issues by priority">
+        {USER_FILTERS.map((filter) => (
           <button
             key={filter}
             type="button"
@@ -98,12 +113,34 @@ export function FindingsList({ audit }: FindingsListProps) {
               severityFilter === filter
                 ? 'border-brand/30 bg-brand/10 text-brand'
                 : 'border-border bg-base text-faint hover:text-primary'
-            }`}
+              }`}
           >
-            {filter}
+            {filterLabel(filter)}
           </button>
         ))}
       </div>
+      <details className="mb-4">
+        <summary className="inline-flex min-h-8 cursor-pointer items-center text-xs text-muted transition-colors hover:text-primary">
+          More filters
+        </summary>
+        <div className="mt-2 flex flex-wrap gap-2" aria-label="Filter findings by technical severity">
+          {TECHNICAL_FILTERS.map((filter) => (
+            <button
+              key={filter}
+              type="button"
+              aria-pressed={severityFilter === filter}
+              onClick={() => setSeverityFilter(filter)}
+              className={`min-h-8 rounded-full border px-3 text-[11px] font-medium capitalize transition-colors ${
+                severityFilter === filter
+                  ? 'border-brand/30 bg-brand/10 text-brand'
+                  : 'border-border bg-base text-faint hover:text-primary'
+              }`}
+            >
+              {filter}
+            </button>
+          ))}
+        </div>
+      </details>
 
       {visibleFamilies.length === 0 ? (
         <p className="rounded-xl border border-border bg-base p-3 text-sm text-muted">
@@ -163,6 +200,12 @@ export function FindingsList({ audit }: FindingsListProps) {
                               {moreCount > 0 && ` +${moreCount} more`}
                             </div>
                           )}
+                          <p className="mt-2 text-xs leading-5 text-muted">
+                            Action: fix or justify this grouped pattern, then re-run the relevant analyzer.
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-faint">
+                            Success check: this finding group no longer appears, or an intentional exception is documented.
+                          </p>
                         </div>
                       )
                     })}

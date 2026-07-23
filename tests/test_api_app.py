@@ -153,7 +153,9 @@ def test_audit_github_url_success(monkeypatch, tmp_path: Path):
     assert "audit" in data
     test_statuses = {entry["tool"]: entry["status"] for entry in data["audit"]["test_analysis"]}
     assert test_statuses == {"pytest": "skipped_by_config", "coverage": "skipped_by_config"}
-    assert data["audit"]["scoring"]["categories"]["testing"] < 100
+    assert data["audit"]["scoring"]["categories"]["testing"] is None
+    assert data["audit"]["scoring"]["category_details"]["testing"]["assessment_state"] == "skipped"
+    assert "testing" in data["audit"]["scoring"]["unassessed_categories"]
     assert data["audit"]["diagnosis"]["evidence_confidence"]["label"] in {"partial", "limited"}
     assert data["audit"]["diagnosis"]["evidence_confidence"]["skipped_optional_tools"] == ["coverage", "pytest"]
     assert "Skipped for remote GitHub audit safety." in data["audit"]["diagnosis"]["limitations"]

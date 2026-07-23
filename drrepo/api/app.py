@@ -19,6 +19,7 @@ from drrepo.api.schemas import (
     ProfileInfo,
     ProfilesResponse,
 )
+from drrepo.api.local_paths import local_path_policy
 from drrepo.api.service import run_audit_service
 from drrepo.analyzers.registry import capability_payload
 
@@ -110,6 +111,7 @@ async def profiles():
 async def capabilities():
     payload = capability_payload()
     payload["ai_advisor"] = _ai_advisor_capabilities()
+    payload["local_path"] = local_path_policy()
     return CapabilitiesResponse(**payload)
 
 

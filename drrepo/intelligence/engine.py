@@ -14,6 +14,7 @@ from drrepo.intelligence.models import (
     ExecutiveReport,
     ProjectIdentity,
     ProjectUnderstanding,
+    RecommendationEvidence,
     Runnability,
     StructuredRecommendation,
     to_plain_dict,
@@ -408,7 +409,10 @@ class ProjectUnderstandingBuilder:
             missing.append("test command")
 
         pytest_verified = any(
-            item.get("tool") == "pytest" and item.get("status") == "completed"
+            item.get("tool") == "pytest"
+            and item.get("status") == "completed"
+            and isinstance(item.get("summary"), dict)
+            and item["summary"].get("outcome") == "passed"
             for item in self.audit.get("test_analysis", []) if isinstance(item, dict)
         )
         if pytest_verified:
@@ -477,6 +481,7 @@ def build_executive_report(
     top_any_rec = recommendations[0] if recommendations else None
     biggest_gap = top_repo_rec.title if top_repo_rec else (top_any_rec.title if top_any_rec else "No major gap identified")
     next_step = top_repo_rec.recommended_steps[0] if top_repo_rec and top_repo_rec.recommended_steps else "Review evidence limitations and keep tests/docs current."
+    recommended_next_move = _recommended_next_move_dict(top_any_rec)
     evidence_gaps = [str(item) for item in limitations[:4]]
     if evidence_conf.get("summary") and not evidence_gaps:
         evidence_gaps.append(str(evidence_conf["summary"]))
@@ -494,6 +499,8 @@ def build_executive_report(
         next_best_step=next_step,
         evidence_gaps=evidence_gaps,
         user_profile_context=str(profile.get("primary_user_goal", profile.get("display_name", profile_id))),
+        readiness_claim=str(health.get("claim") or ""),
+        recommended_next_move=recommended_next_move,
     )
 
 
@@ -509,50 +516,65 @@ def build_structured_recommendations(
 
     readme_codes = [f for f in findings if str(f.get("code", "")).startswith("README-")]
     if readme_codes:
+        evidence_items = _evidence_items_for_findings(readme_codes)
         recommendations.append(_rec(
             "readme-documentation",
-            "Document setup, testing, and project context",
+            _title_for_rule("readme", str(readme_codes[0].get("code") or "")),
             "documentation",
             "medium",
             "repository_fix",
             "Clear README evidence is a major trust signal for this profile.",
-            [str(f.get("code")) for f in readme_codes[:6]],
-            ["Add setup or installation instructions that match the detected dependency strategy.", "Document the test command and expected result.", "State the project license or link to it."],
-            "The README explains how to install, run, test, and evaluate the project.",
+            _string_evidence(evidence_items, fallback=[str(f.get("code")) for f in readme_codes[:6]]),
+            _steps_for_rule("readme", str(readme_codes[0].get("code") or "")),
+            _success_for_rule("readme", str(readme_codes[0].get("code") or "")),
             effort="medium",
+            evidence_items=evidence_items,
+            profile_relevance=_profile_relevance(profile_id, "documentation"),
         ))
 
-    if any(f.get("tool") == "ruff" for f in findings):
-        codes = sorted({str(f.get("code") or "ruff") for f in findings if f.get("tool") == "ruff"})
+    ruff_findings = [f for f in findings if f.get("tool") == "ruff"]
+    if ruff_findings:
+        codes = sorted({str(f.get("code") or "ruff") for f in ruff_findings})
+        first_code = codes[0] if codes else "ruff"
+        evidence_items = _evidence_items_for_findings(ruff_findings)
         recommendations.append(_rec(
             "ruff-quality",
-            "Resolve grouped Ruff code-quality findings",
+            _title_for_rule("ruff", first_code),
             "code_quality",
             "low",
             "repository_fix",
             "Lint findings reduce maintainability and make review noisier.",
-            codes[:8],
-            ["Run Ruff locally.", "Fix rule families that repeat across files first.", "Re-run DrRepo or Ruff to confirm the finding count drops."],
-            "Ruff completes with no findings or only intentionally accepted exceptions.",
+            _string_evidence(evidence_items, fallback=codes[:8]),
+            _steps_for_rule("ruff", first_code),
+            _success_for_rule("ruff", first_code),
             effort="small",
+            evidence_items=evidence_items,
+            profile_relevance=_profile_relevance(profile_id, "code_quality"),
         ))
 
-    if any(f.get("tool") == "bandit" for f in findings):
+    bandit_findings = [f for f in findings if f.get("tool") == "bandit"]
+    if bandit_findings:
+        codes = sorted({str(f.get("code") or "bandit") for f in bandit_findings})
+        first_code = codes[0] if codes else "bandit"
+        evidence_items = _evidence_items_for_findings(bandit_findings)
         recommendations.append(_rec(
             "bandit-security",
-            "Review Bandit security findings",
+            _title_for_rule("bandit", first_code),
             "security",
             "high",
             "repository_fix",
             "Security findings can represent real risk and should stay visible even when other scores are strong.",
-            [str(f.get("code") or f.get("message")) for f in findings if f.get("tool") == "bandit"][:6],
-            ["Inspect each Bandit finding in context.", "Replace unsafe patterns or document a justified suppression.", "Re-run Bandit/DrRepo to confirm the risk is resolved."],
-            "Bandit findings are fixed, justified, or suppressed with clear rationale.",
+            _string_evidence(evidence_items, fallback=[str(f.get("code") or f.get("message")) for f in bandit_findings[:6]]),
+            _steps_for_rule("bandit", first_code),
+            _success_for_rule("bandit", first_code),
             effort="medium",
+            evidence_items=evidence_items,
+            profile_relevance=_profile_relevance(profile_id, "security"),
         ))
 
     test_findings = [f for f in findings if f.get("tool") == "pytest"]
     if test_findings:
+        evidence_items = _evidence_items_for_findings(test_findings)
         recommendations.append(_rec(
             "test-failures",
             "Fix test execution failures",
@@ -560,10 +582,12 @@ def build_structured_recommendations(
             "high",
             "repository_fix",
             "Failing or un-runnable tests block trust in the observed repository behavior.",
-            [str(f.get("code") or f.get("message")) for f in test_findings[:4]],
+            _string_evidence(evidence_items, fallback=[str(f.get("code") or f.get("message")) for f in test_findings[:4]]),
             ["Run the detected pytest command locally.", "Fix import, dependency, fixture, or assertion failures.", "Re-run DrRepo in deep_local mode."],
             "Pytest completes with a passed outcome.",
             effort="medium",
+            evidence_items=evidence_items,
+            profile_relevance=_profile_relevance(profile_id, "testing"),
         ))
 
     runnability = understanding.runnability
@@ -579,6 +603,7 @@ def build_structured_recommendations(
             ["Add or update dependency metadata.", "Document the primary run command.", "Document the test command or explain why tests are not applicable."],
             "A new user can install, run, and test the project from documented commands.",
             effort="medium",
+            profile_relevance=_profile_relevance(profile_id, "reproducibility"),
         ))
 
     for entry in _audit_environment_issues(audit):
@@ -594,6 +619,7 @@ def build_structured_recommendations(
             f"{entry['tool']} is available or intentionally skipped with a known reason.",
             effort="small",
             optional_example='python -m pip install -e ".[analysis]"',
+            profile_relevance="audit environment",
         ))
 
     if profile_id in {"production_service", "production_api"}:
@@ -626,8 +652,13 @@ def _rec(
     *,
     effort: str,
     optional_example: str | None = None,
+    evidence_items: list[RecommendationEvidence] | None = None,
+    profile_relevance: str = "medium",
 ) -> StructuredRecommendation:
     base_priority = {"high": 10, "medium": 30, "low": 50}.get(severity, 40)
+    structured_evidence = evidence_items or []
+    source_ids = _dedupe_strings([item.finding_id for item in structured_evidence if item.finding_id])
+    affected_files = _dedupe_strings([item.path for item in structured_evidence if item.path])
     return StructuredRecommendation(
         id=rec_id,
         title=title,
@@ -644,7 +675,168 @@ def _rec(
         recommended_steps=steps,
         optional_example=optional_example,
         success_check=success_check,
+        profile_relevance=profile_relevance,
+        evidence_items=structured_evidence[:12],
+        affected_files=affected_files[:12],
+        source_finding_ids=source_ids[:12],
     )
+
+
+def _recommended_next_move_dict(rec: StructuredRecommendation | None) -> dict[str, Any] | None:
+    if rec is None:
+        return None
+    first_step = rec.recommended_steps[0] if rec.recommended_steps else rec.success_check
+    return {
+        "recommendation_id": rec.id,
+        "title": rec.title,
+        "reason": rec.why_it_matters,
+        "evidence_references": rec.source_finding_ids or rec.evidence[:4],
+        "first_step": first_step,
+        "success_check": rec.success_check,
+        "profile_relevance": rec.profile_relevance,
+        "confidence": rec.confidence,
+    }
+
+
+RULE_COPY: dict[tuple[str, str], dict[str, Any]] = {
+    ("ruff", "F401"): {
+        "title": "Remove unused imports",
+        "steps": ["Remove unused imports reported by Ruff.", "Keep imports grouped and intentional.", "Re-run Ruff to confirm F401 is gone."],
+        "success": "Ruff no longer reports F401 unused-import findings.",
+    },
+    ("ruff", "F811"): {
+        "title": "Remove duplicate definitions",
+        "steps": ["Find each duplicate definition.", "Rename or remove the accidental redefinition.", "Re-run Ruff to confirm F811 is gone."],
+        "success": "No F811 duplicate-definition findings remain.",
+    },
+    ("ruff", "E402"): {
+        "title": "Move imports to the top of the module",
+        "steps": ["Move ordinary imports before executable module code.", "Keep intentional late imports documented only when required.", "Re-run Ruff."],
+        "success": "Ruff no longer reports E402 import-order findings.",
+    },
+    ("ruff", "E712"): {
+        "title": "Use idiomatic boolean comparisons",
+        "steps": ["Replace equality checks against True or False with direct boolean checks.", "Keep explicit comparisons only where a tri-state value requires them.", "Re-run Ruff."],
+        "success": "Ruff no longer reports E712 boolean-comparison findings.",
+    },
+    ("bandit", "B101"): {
+        "title": "Review assert usage in production code",
+        "steps": ["Inspect each assert location in context.", "Replace production asserts with explicit validation or error handling.", "Keep pytest assertions in tests as test evidence.", "Re-run Bandit or DrRepo."],
+        "success": "Production assert findings are removed or intentionally justified.",
+    },
+    ("bandit", "B105"): {
+        "title": "Remove hardcoded password-like strings",
+        "steps": ["Move credential-like values out of source.", "Load them from environment or secret storage.", "Rotate real credentials if any were committed."],
+        "success": "Bandit no longer reports B105 hardcoded password strings.",
+    },
+    ("bandit", "B106"): {
+        "title": "Remove hardcoded password defaults",
+        "steps": ["Remove password-like default arguments.", "Require callers to provide secrets through configuration.", "Rotate real credentials if applicable."],
+        "success": "Bandit no longer reports B106 hardcoded password defaults.",
+    },
+    ("bandit", "B107"): {
+        "title": "Remove hardcoded password constructor defaults",
+        "steps": ["Remove password-like constructor defaults.", "Inject secrets through runtime configuration.", "Rotate real credentials if applicable."],
+        "success": "Bandit no longer reports B107 hardcoded password defaults.",
+    },
+    ("bandit", "B608"): {
+        "title": "Parameterize SQL construction",
+        "steps": ["Locate SQL built from formatted strings or concatenation.", "Use parameterized queries or the ORM query builder.", "Add a test covering user-controlled input."],
+        "success": "Bandit no longer reports B608 SQL-injection risk.",
+    },
+    ("readme", "README-MISSING-SETUP"): {
+        "title": "Document setup instructions",
+        "steps": ["Add installation commands matching the detected dependency files.", "Document Python or Node version expectations.", "Keep commands copy-pasteable from a fresh checkout."],
+        "success": "The README tells a new user exactly how to install the project.",
+    },
+    ("readme", "README-MISSING-USAGE"): {
+        "title": "Document how to run the project",
+        "steps": ["Add the primary run command.", "Mention expected inputs or environment variables.", "Include the expected successful result."],
+        "success": "The README shows how to run the project after setup.",
+    },
+    ("readme", "README-MISSING-TESTS"): {
+        "title": "Document how to verify the project",
+        "steps": ["Add the test command.", "Explain any skipped or unavailable tests.", "Document expected passing output."],
+        "success": "The README explains how to run project verification.",
+    },
+    ("readme", "README-MISSING-LICENSE"): {
+        "title": "Clarify the project license",
+        "steps": ["Add a license file or state the license status in the README.", "Use wording that matches the intended reuse policy."],
+        "success": "The repository clearly states its license or reuse status.",
+    },
+}
+
+
+def _title_for_rule(tool: str, code: str) -> str:
+    copy = RULE_COPY.get((tool, code))
+    if copy:
+        return str(copy["title"])
+    if tool == "ruff":
+        return "Resolve grouped Ruff code-quality findings"
+    if tool == "bandit":
+        return "Review Bandit security findings"
+    return "Document setup, testing, and project context"
+
+
+def _steps_for_rule(tool: str, code: str) -> list[str]:
+    copy = RULE_COPY.get((tool, code))
+    if copy and isinstance(copy.get("steps"), list):
+        return [str(item) for item in copy["steps"]]
+    if tool == "ruff":
+        return ["Run Ruff locally.", "Fix rule families that repeat across files first.", "Re-run DrRepo or Ruff to confirm the finding count drops."]
+    if tool == "bandit":
+        return ["Inspect each Bandit finding in context.", "Replace unsafe patterns or document a justified suppression.", "Re-run Bandit or DrRepo."]
+    return ["Add setup or installation instructions that match the detected dependency strategy.", "Document the test command and expected result.", "State the project license or link to it."]
+
+
+def _success_for_rule(tool: str, code: str) -> str:
+    copy = RULE_COPY.get((tool, code))
+    if copy:
+        return str(copy["success"])
+    if tool == "ruff":
+        return "Ruff completes with no findings or only intentionally accepted exceptions."
+    if tool == "bandit":
+        return "Bandit findings are fixed, justified, or suppressed with clear rationale."
+    return "The README explains how to install, run, test, and evaluate the project."
+
+
+def _profile_relevance(profile_id: str, category: str) -> str:
+    profile = get_profile(profile_id)
+    high = set(profile.get("high_priority_categories") or [])
+    if category in high:
+        return "high"
+    if category == "audit_environment":
+        return "audit environment"
+    return "medium"
+
+
+def _evidence_items_for_findings(findings: list[dict[str, Any]]) -> list[RecommendationEvidence]:
+    items: list[RecommendationEvidence] = []
+    for finding in findings:
+        path = finding.get("file_path")
+        line = finding.get("line")
+        item = RecommendationEvidence(
+            analyzer=str(finding.get("tool") or "") or None,
+            code=str(finding.get("code") or "") or None,
+            path=str(path).replace("\\", "/") if path else None,
+            line=int(line) if isinstance(line, int) else None,
+            detail=str(finding.get("message") or "")[:220] or None,
+            finding_id=str(finding.get("finding_id") or "") or None,
+        )
+        items.append(item)
+    return items
+
+
+def _string_evidence(evidence_items: list[RecommendationEvidence], *, fallback: list[str]) -> list[str]:
+    values: list[str] = []
+    for item in evidence_items:
+        label = item.code or item.analyzer or item.finding_id
+        if item.path:
+            location = item.path if item.line is None else f"{item.path}:{item.line}"
+            values.append(f"{label or 'finding'} at {location}")
+        elif label:
+            values.append(label)
+    return _dedupe_strings(values or fallback)[:8]
 
 
 def _boost(recommendations: list[StructuredRecommendation], categories: set[str], amount: int) -> None:
@@ -671,10 +863,12 @@ def _all_findings(audit: dict[str, Any]) -> list[dict[str, Any]]:
             if not isinstance(analyzer, dict):
                 continue
             tool = analyzer.get("tool")
-            for finding in analyzer.get("findings", []) or []:
+            for index, finding in enumerate(analyzer.get("findings", []) or [], start=1):
                 if isinstance(finding, dict):
                     item = dict(finding)
                     item.setdefault("tool", tool)
+                    code = str(item.get("code") or "finding").lower()
+                    item.setdefault("finding_id", f"{tool}:{code}:{index}")
                     findings.append(item)
     return findings
 

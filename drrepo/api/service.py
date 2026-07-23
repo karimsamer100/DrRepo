@@ -6,6 +6,7 @@ from typing import Any
 from drrepo.advisor.reporting import build_deterministic_advisor_report
 from drrepo.advisor.service import build_advisor_for_audit
 from drrepo.analyzers.registry import validate_analysis_mode
+from drrepo.api.local_paths import validate_local_source_path
 from drrepo.audit import build_audit
 
 
@@ -35,7 +36,7 @@ def run_audit_service(
     audit_path: str | Path
 
     if source_type == "local_path":
-        audit_path = source_value
+        audit_path = validate_local_source_path(source_value)
     elif source_type == "github_url":
         from drrepo.input.git import is_public_github_repo_url
         from drrepo.input.workspace import (

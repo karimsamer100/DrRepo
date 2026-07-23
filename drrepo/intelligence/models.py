@@ -83,6 +83,21 @@ class ExecutiveReport:
     next_best_step: str
     evidence_gaps: list[str]
     user_profile_context: str
+    readiness_claim: str | None = None
+    recommended_next_move: dict[str, Any] | None = None
+
+
+@dataclass
+class RecommendationEvidence:
+    analyzer: str | None = None
+    code: str | None = None
+    path: str | None = None
+    line: int | None = None
+    line_end: int | None = None
+    detail: str | None = None
+    finding_id: str | None = None
+    readiness_id: str | None = None
+    architecture_id: str | None = None
 
 
 @dataclass
@@ -102,6 +117,10 @@ class StructuredRecommendation:
     recommended_steps: list[str]
     optional_example: str | None
     success_check: str
+    profile_relevance: str = "medium"
+    evidence_items: list[RecommendationEvidence] = field(default_factory=list)
+    affected_files: list[str] = field(default_factory=list)
+    source_finding_ids: list[str] = field(default_factory=list)
 
 
 def to_plain_dict(value: Any) -> Any:

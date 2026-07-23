@@ -115,13 +115,14 @@ def build_audit(
     devops_recommendations = scanned["devops_readiness"].get("recommendations", [])
     if isinstance(devops_recommendations, list):
         existing = scanned.get("recommendations_v2", [])
-        scanned["recommendations_v2"] = _prioritize_recommendations([*existing, *devops_recommendations])
+        scanned["recommendations_v2"] = _prioritize_recommendations([*existing, *devops_recommendations], profile_id=profile_id)
         _refresh_executive_priorities(scanned)
 
     return scanned
 
 
-def _prioritize_recommendations(recommendations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _prioritize_recommendations(recommendations: list[dict[str, Any]], *, profile_id: str) -> list[dict[str, Any]]:
+    profile_category_rank = _profile_category_rank(profile_id)
     type_rank = {
         "release_blocker": 0,
         "security_review": 1,
@@ -131,9 +132,11 @@ def _prioritize_recommendations(recommendations: list[dict[str, Any]]) -> list[d
         "audit_environment": 5,
     }
     severity_rank = {"critical": 0, "high": 1, "medium": 2, "low": 3, "unknown": 4}
+    deduped = _dedupe_recommendation_dicts(recommendations)
     sorted_recs = sorted(
-        recommendations,
+        deduped,
         key=lambda rec: (
+            profile_category_rank.get(str(rec.get("category", "")), 50),
             type_rank.get(str(rec.get("recommendation_type", "repository_fix")), 2),
             severity_rank.get(str(rec.get("severity", "unknown")), 4),
             int(rec.get("priority", 999) or 999),
@@ -143,6 +146,45 @@ def _prioritize_recommendations(recommendations: list[dict[str, Any]]) -> list[d
     for index, rec in enumerate(sorted_recs, start=1):
         rec["priority"] = index
     return sorted_recs
+
+
+def _profile_category_rank(profile_id: str) -> dict[str, int]:
+    if profile_id in {"production_service", "production_api"}:
+        order = ["security", "testing", "ci_cd", "deployment", "containerization", "observability", "reproducibility"]
+    elif profile_id == "ai_ml_project":
+        order = ["reproducibility", "documentation", "testing", "architecture", "code_quality", "security"]
+    else:
+        order = ["documentation", "reproducibility", "testing", "architecture", "code_quality", "security", "ci_cd", "containerization"]
+    return {category: index for index, category in enumerate(order)}
+
+
+def _dedupe_recommendation_dicts(recommendations: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    seen: set[str] = set()
+    result: list[dict[str, Any]] = []
+    for rec in recommendations:
+        if not isinstance(rec, dict):
+            continue
+        key = _recommendation_root_key(rec)
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append(rec)
+    return result
+
+
+def _recommendation_root_key(rec: dict[str, Any]) -> str:
+    rec_id = str(rec.get("id") or "")
+    category = str(rec.get("category") or "")
+    if rec_id in {"readme-documentation", "devops-ci.missing"} or "ci.missing" in rec_id:
+        return "ci" if category == "ci_cd" else rec_id
+    if "readme" in rec_id or category == "documentation":
+        return "documentation"
+    if "ruff" in rec_id or category == "code_quality":
+        return "code_quality"
+    if "bandit" in rec_id or category == "security":
+        return "security"
+    title = str(rec.get("title") or "").lower()
+    return f"{category}:{title}"
 
 
 def _refresh_executive_priorities(audit: Dict[str, Any]) -> None:
@@ -163,3 +205,13 @@ def _refresh_executive_priorities(audit: Dict[str, Any]) -> None:
         first_step = str(top.get("success_check") or top.get("why_it_matters") or "")
     if first_step:
         executive["next_best_step"] = first_step
+    executive["recommended_next_move"] = {
+        "recommendation_id": top.get("id"),
+        "title": title,
+        "reason": top.get("why_it_matters"),
+        "evidence_references": top.get("source_finding_ids") or top.get("related_findings") or top.get("evidence") or [],
+        "first_step": first_step,
+        "success_check": top.get("success_check"),
+        "profile_relevance": top.get("profile_relevance"),
+        "confidence": top.get("confidence"),
+    }

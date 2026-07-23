@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { AuditConsoleHeader } from './components/AuditConsoleHeader'
-import { Sidebar } from './components/Sidebar'
 import { AuditInputCard } from './components/AuditInputCard'
 import { LoadingState } from './components/LoadingState'
 import { ResultOverview } from './components/ResultOverview'
@@ -41,12 +40,10 @@ function ResultLayout({
   }
   const findingCount = getFindingFamilies(data.audit).reduce((total, family) => total + family.count, 0)
   const actionCount = data.audit.recommendations_v2?.length || 0
-  const architectureCount = data.audit.architecture_assessment?.hotspots?.length || 0
-  const devopsCount = data.audit.devops_readiness?.blockers?.length || 0
 
   const renderActiveView = () => {
     switch (activeView) {
-      case 'actions':
+      case 'fix_plan':
         return (
           <AdvisorPanel
             advisor={data.advisor}
@@ -55,16 +52,26 @@ function ResultLayout({
             recommendations={data.audit.recommendations_v2}
           />
         )
-      case 'findings':
+      case 'issues':
         return <FindingsList audit={data.audit} />
-      case 'devops':
-        return <DevOpsReadinessPanel readiness={data.audit.devops_readiness} />
-      case 'architecture':
-        return <ArchitecturePanel assessment={data.audit.architecture_assessment} />
-      case 'evidence':
+      case 'technical_details':
         return (
-          <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px] lg:items-start">
-            <div className="min-w-0 space-y-5">
+          <div className="space-y-5">
+            <details open className="rounded-2xl border border-border bg-surface p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-primary">Release and operational readiness</summary>
+              <div className="mt-4">
+                <DevOpsReadinessPanel readiness={data.audit.devops_readiness} />
+              </div>
+            </details>
+            <details open className="rounded-2xl border border-border bg-surface p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-primary">Project structure and risk areas</summary>
+              <div className="mt-4">
+                <ArchitecturePanel assessment={data.audit.architecture_assessment} />
+              </div>
+            </details>
+            <details open className="rounded-2xl border border-border bg-surface p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-primary">What DrRepo checked</summary>
+              <div className="mt-4 space-y-5">
               {data.audit.diagnosis?.evidence_confidence && (
                 <section className="rounded-2xl border border-border bg-surface p-4">
                   <h2 className="text-sm font-semibold text-primary">Evidence confidence</h2>
@@ -80,14 +87,18 @@ function ResultLayout({
                 dependencyEnvironment={data.audit.dependency_environment}
                 projectUnderstanding={data.audit.project_understanding}
               />
-            </div>
-            <aside className="min-w-0 space-y-5 lg:sticky lg:top-20">
+              </div>
+            </details>
+            <details className="rounded-2xl border border-border bg-surface p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-primary">Export</summary>
+              <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
               <ExportActions data={data} />
               <MarkdownPreview content={data.markdown} />
-            </aside>
+              </div>
+            </details>
           </div>
         )
-      case 'overview':
+      case 'summary':
       default:
         return <ResultOverview data={data} onNavigate={onViewChange} />
     }
@@ -98,7 +109,7 @@ function ResultLayout({
       <ResultNavigation
         activeView={activeView}
         onViewChange={onViewChange}
-        counts={{ actions: actionCount, findings: findingCount, devops: devopsCount, architecture: architectureCount }}
+        counts={{ fix_plan: actionCount, issues: findingCount }}
       />
       <div
         id={`result-panel-${activeView}`}
@@ -118,7 +129,7 @@ export default function App() {
   const [recentAudits, setRecentAudits] = useState<RecentAudit[]>([])
   const [capabilities, setCapabilities] = useState<CapabilitiesResponse | null>(null)
   const [capabilityError, setCapabilityError] = useState<string | null>(null)
-  const [activeResultView, setActiveResultView] = useState<ResultView>('overview')
+  const [activeResultView, setActiveResultView] = useState<ResultView>('summary')
 
   useEffect(() => {
     setRecentAudits(loadRecentAudits())
@@ -163,7 +174,7 @@ export default function App() {
 
   useEffect(() => {
     if (state.status === 'loading' || state.status === 'done') {
-      setActiveResultView('overview')
+      setActiveResultView('summary')
     }
   }, [state.status, state.data])
 
@@ -188,11 +199,10 @@ export default function App() {
   const errorInfo = state.status === 'error' ? classifyError(state.error) : null
 
   return (
-    <div className="flex h-dvh w-full flex-col bg-base text-primary antialiased sm:flex-row">
+    <div className="flex h-dvh w-full flex-col bg-base text-primary antialiased">
       <a href="#main-content" className="skip-link">
         Skip to diagnostic
       </a>
-      <Sidebar onReset={reset} />
       <div className="flex min-w-0 flex-1 flex-col">
         <AuditConsoleHeader onNew={state.status !== 'idle' ? reset : undefined} />
         <main

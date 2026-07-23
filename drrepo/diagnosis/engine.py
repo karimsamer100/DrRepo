@@ -23,6 +23,19 @@ def _label_for_score(score: float | int | None) -> str:
     return "needs_major_improvement"
 
 
+def _has_weak_assessed_category(scoring: Dict[str, Any], threshold: int = 80) -> bool:
+    details = scoring.get("category_details") if isinstance(scoring, dict) else None
+    if not isinstance(details, dict):
+        return False
+    for detail in details.values():
+        if not isinstance(detail, dict) or not detail.get("assessed"):
+            continue
+        score = detail.get("score")
+        if isinstance(score, (int, float)) and score < threshold:
+            return True
+    return False
+
+
 def _first_error(errors: Any) -> str | None:
     if not isinstance(errors, list):
         return None
@@ -40,7 +53,7 @@ def build_diagnosis(audit: Dict[str, Any]) -> Dict[str, Any]:
     # support both overall_score and overall
     score = None
     if isinstance(scoring, dict):
-        score = scoring.get("overall_score") if scoring.get("overall_score") is not None else scoring.get("overall")
+        score = scoring.get("observed_score") if scoring.get("observed_score") is not None else scoring.get("overall_score") if scoring.get("overall_score") is not None else scoring.get("overall")
 
     limitations: List[str] = []
     analyzer_entries: List[Dict[str, Any]] = []
@@ -107,8 +120,31 @@ def build_diagnosis(audit: Dict[str, Any]) -> Dict[str, Any]:
     hard_flags = derive_hard_flags(analyzer_entries)
     limitations = first_seen_dedup(limitations)
     evidence_confidence = build_evidence_confidence(analyzer_entries)
+    assessed_weight_ratio = scoring.get("assessed_weight_ratio") if isinstance(scoring, dict) else None
+    unassessed_categories = scoring.get("unassessed_categories") if isinstance(scoring, dict) else []
     calibrated_score = cap_score_for_hard_flags(score, hard_flags)
     label = _label_for_score(calibrated_score)
+    if label == "healthy" and isinstance(scoring, dict) and _has_weak_assessed_category(scoring):
+        label = "needs_attention"
+    claim_strength = "verified"
+    try:
+        assessed_ratio_num = float(assessed_weight_ratio)
+    except Exception:
+        assessed_ratio_num = 1.0
+    if assessed_ratio_num < 0.4:
+        claim_strength = "insufficient_evidence"
+    elif evidence_confidence and evidence_confidence.get("label") != "full":
+        claim_strength = "limited_verification"
+    if label == "healthy" and claim_strength == "limited_verification":
+        claim = "Healthy in observed checks - verification is limited."
+    elif claim_strength == "insufficient_evidence":
+        claim = "Insufficient evidence to make a strong readiness claim."
+    elif label == "healthy":
+        claim = "Verified healthy in assessed checks."
+    elif hard_flags:
+        claim = "Blocked by confirmed audit evidence."
+    else:
+        claim = "Needs improvement based on observed findings."
 
     # Build summary text
     summaries = {
@@ -118,13 +154,24 @@ def build_diagnosis(audit: Dict[str, Any]) -> Dict[str, Any]:
         "needs_major_improvement": "Repository has major readiness issues that should be fixed first.",
     }
     summary = summaries.get(label, "Repository status uncertain.")
-    if evidence_confidence and evidence_confidence.get("label") != "full":
+    if claim_strength == "insufficient_evidence":
+        summary = f"{claim} Some categories were not assessed."
+    elif evidence_confidence and evidence_confidence.get("label") != "full":
         summary = f"{summary} {evidence_confidence.get('summary')}"
     if hard_flags:
         summary = summary + " Hard flags: " + ", ".join(hard_flags) + "."
 
     diagnosis = {
-        "repository_health": {"label": label, "score": calibrated_score, "summary": summary},
+        "repository_health": {
+            "label": label,
+            "score": calibrated_score,
+            "observed_score": calibrated_score,
+            "summary": summary,
+            "claim": claim,
+            "claim_strength": claim_strength,
+            "assessed_weight_ratio": assessed_weight_ratio,
+            "unassessed_categories": unassessed_categories if isinstance(unassessed_categories, list) else [],
+        },
         "hard_flags": hard_flags,
         "limitations": limitations,
     }

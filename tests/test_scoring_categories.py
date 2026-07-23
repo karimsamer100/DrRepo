@@ -35,8 +35,9 @@ def test_categories_and_top_level_scores_present(monkeypatch, tmp_path: Path):
     for cat in ("code_quality", "testing", "security", "maintainability", "documentation", "structure"):
         assert cat in cats
 
-    assert isinstance(scoring.get("repository_health_score"), int)
-    assert isinstance(scoring.get("portfolio_readiness_score"), int)
+    assert scoring.get("repository_health_score") is None
+    assert scoring.get("portfolio_readiness_score") is None
+    assert scoring.get("assessed_weight_ratio") == 0
 
 
 def test_scores_clamped_between_0_and_100(monkeypatch, tmp_path: Path):
@@ -116,7 +117,8 @@ def test_category_reasons_include_expected_fields(monkeypatch, tmp_path: Path):
 def test_not_available_does_not_reduce(monkeypatch, tmp_path: Path):
     ruff = ToolResult(tool="ruff", status="not_available")
     scoring = _scoring_for(monkeypatch, tmp_path, static=[ruff])
-    assert scoring.get("categories", {}).get("code_quality") == 100
+    assert scoring.get("categories", {}).get("code_quality") is None
+    assert scoring.get("category_details", {}).get("code_quality", {}).get("assessment_state") == "not_assessed"
 
 
 def test_optional_failed_to_run_and_partial_do_not_reduce_observed_score(monkeypatch, tmp_path: Path):

@@ -209,7 +209,9 @@ def test_recommendations_group_readme_ruff_and_audit_environment(tmp_path):
     titles = [rec["title"] for rec in recommendations]
 
     assert titles.count("Document setup, testing, and project context") == 1
-    assert "Resolve grouped Ruff code-quality findings" in titles
+    assert "Remove unused imports" in titles
+    ruff_rec = next(rec for rec in recommendations if rec["title"] == "Remove unused imports")
+    assert ruff_rec["evidence_items"][0]["code"] == "F401"
     assert any(rec["recommendation_type"] == "audit_environment" for rec in recommendations)
 
 

@@ -12,8 +12,6 @@ HARD_FLAG_SCORE_CAPS = {
     "TESTS_FAILING": 79,
     "TESTS_COULD_NOT_RUN": 79,
     "ANALYZER_ERRORS_PRESENT": 79,
-    "README_INCOMPLETE": 84,
-    "STRUCTURE_INCOMPLETE": 84,
 }
 
 
@@ -57,12 +55,8 @@ def derive_hard_flags(entries: Iterable[Any]) -> list[str]:
         if status in ("failed_to_run", "partial") and is_core_analyzer(str(tool)):
             flags.append("ANALYZER_ERRORS_PRESENT")
 
-        if tool == "readme" and findings:
-            flags.append("README_INCOMPLETE")
-        if tool == "structure" and findings:
-            flags.append("STRUCTURE_INCOMPLETE")
         if tool == "bandit":
-            if any(str(_finding_value(f, "severity", "")).lower() in {"medium", "high", "critical"} for f in findings):
+            if any(str(_finding_value(f, "severity", "")).lower() in {"high", "critical"} for f in findings):
                 flags.append("SECURITY_FINDINGS_PRESENT")
         if tool == "pytest":
             finding_codes = {_finding_value(f, "code") for f in findings}
@@ -110,10 +104,14 @@ def build_evidence_confidence(entries: Iterable[Any]) -> dict[str, Any]:
     incomplete = [tool for tool, status in statuses.items() if status == "partial"]
     limited_tools = unavailable + skipped + failed + incomplete
 
+    total = len(OPTIONAL_EVIDENCE_TOOLS)
+    assessed_ratio = round(len(available) / total, 2) if total else 0.0
+
     if not limited_tools:
         return {
             "label": "full",
-            "summary": f"Full evidence: all {len(OPTIONAL_EVIDENCE_TOOLS)} optional tools were available.",
+            "summary": f"Full evidence: all {total} optional tools were available.",
+            "assessed_optional_tool_ratio": assessed_ratio,
             "available_optional_tools": available,
             "missing_optional_tools": [],
             "skipped_optional_tools": [],
@@ -128,12 +126,13 @@ def build_evidence_confidence(entries: Iterable[Any]) -> dict[str, Any]:
     failed_text = ", ".join(failed) if failed else "none"
     incomplete_text = ", ".join(incomplete) if incomplete else "none"
     summary = (
-        f"{title}: {len(available)} of {len(OPTIONAL_EVIDENCE_TOOLS)} optional tools were available. "
+        f"{title}: {len(available)} of {total} optional tools were available. "
         f"Unavailable: {unavailable_text}. Skipped: {skipped_text}. Failed: {failed_text}. Incomplete: {incomplete_text}."
     )
     return {
         "label": label,
         "summary": summary,
+        "assessed_optional_tool_ratio": assessed_ratio,
         "available_optional_tools": available,
         "missing_optional_tools": unavailable,
         "skipped_optional_tools": skipped,

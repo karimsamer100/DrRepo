@@ -42,7 +42,11 @@ export interface ScoreBreakdown {
 }
 
 export interface AuditScoring {
-  overall_score: number
+  overall_score: number | null
+  observed_score?: number | null
+  assessed_weight_ratio?: number | null
+  score_basis?: string
+  unassessed_categories?: string[]
   repository_health_score?: number
   portfolio_readiness_score?: number
   sections?: {
@@ -51,19 +55,24 @@ export interface AuditScoring {
     repository_analysis?: ScoreBreakdown
   }
   categories?: {
-    code_quality?: number
-    testing?: number
-    security?: number
-    maintainability?: number
-    documentation?: number
-    structure?: number
+    code_quality?: number | null
+    testing?: number | null
+    security?: number | null
+    maintainability?: number | null
+    documentation?: number | null
+    structure?: number | null
   }
 }
 
 export interface RepositoryHealth {
   label?: string
   score?: number | null
+  observed_score?: number | null
   summary?: string
+  claim?: string
+  claim_strength?: string
+  assessed_weight_ratio?: number | null
+  unassessed_categories?: string[]
 }
 
 export interface EvidenceConfidence {
@@ -163,6 +172,17 @@ export interface ExecutiveReport {
   next_best_step?: string
   evidence_gaps?: string[]
   user_profile_context?: string
+  readiness_claim?: string
+  recommended_next_move?: {
+    recommendation_id?: string
+    title?: string
+    reason?: string
+    evidence_references?: string[]
+    first_step?: string
+    success_check?: string
+    profile_relevance?: string
+    confidence?: string
+  } | null
 }
 
 export interface StructuredRecommendation {
@@ -177,6 +197,20 @@ export interface StructuredRecommendation {
   recommendation_type?: 'repository_fix' | 'audit_environment' | 'verification_step' | string
   why_it_matters?: string
   evidence?: string[]
+  evidence_items?: Array<{
+    analyzer?: string | null
+    code?: string | null
+    path?: string | null
+    line?: number | null
+    line_end?: number | null
+    detail?: string | null
+    finding_id?: string | null
+    readiness_id?: string | null
+    architecture_id?: string | null
+  }>
+  affected_files?: string[]
+  source_finding_ids?: string[]
+  profile_relevance?: string
   related_findings?: string[]
   recommended_steps?: string[]
   optional_example?: string | null
@@ -523,4 +557,10 @@ export interface CapabilitiesResponse {
     install_command?: string
   }
   ai_advisor?: AIAdvisorCapability | null
+  local_path?: {
+    enabled: boolean
+    restricted_to_allowed_roots?: boolean
+    public_mode?: boolean
+    limitation?: string
+  } | null
 }

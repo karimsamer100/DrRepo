@@ -384,9 +384,8 @@ class DevOpsReadinessBuilder:
 
     def _observability(self) -> DimensionAssessment:
         if self._is_library_or_cli() and not self._is_production_app():
-            applicability = "applicable"
-        else:
-            applicability = "applicable"
+            return self._dimension("observability", "Observability and Operations", "not_applicable", [], [], [], [], [], "Operational observability is not required for this project type.")
+        applicability = "applicable"
         evidence: list[ReadinessEvidence] = []
         strengths: list[str] = []
         findings: list[ReadinessFinding] = []

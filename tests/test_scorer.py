@@ -118,7 +118,8 @@ def test_readme_structure_flags_do_not_cap_repository_health_score():
     out = score_audit_sections(static, test, repo)
 
     assert out["repository_health_score"] > 84
-    assert out["portfolio_readiness_score"] == 84
+    assert out["portfolio_readiness_score"] > 84
+    assert "README_INCOMPLETE" not in out.get("hard_flags", [])
 
 
 def test_no_tests_do_not_score_as_perfect_testing():
@@ -131,8 +132,11 @@ def test_no_tests_do_not_score_as_perfect_testing():
 
     out = score_audit_sections(static, test, repo)
 
-    assert out["categories"]["testing"] == 70
-    assert out["portfolio_readiness_score"] < 100
+    assert out["categories"]["testing"] is None
+    assert out["category_details"]["testing"]["assessment_state"] == "not_assessed"
+    assert "testing" in out["unassessed_categories"]
+    assert out["portfolio_readiness_score"] == 100
+    assert out["assessed_weight_ratio"] < 1
 
 
 def test_passed_tests_can_score_testing_as_perfect():
@@ -155,4 +159,6 @@ def test_remote_skipped_tests_do_not_score_as_passed():
         [make_result("readme", "completed")],
     )
 
-    assert out["categories"]["testing"] == 70
+    assert out["categories"]["testing"] is None
+    assert out["category_details"]["testing"]["assessment_state"] == "skipped"
+    assert "testing" in out["unassessed_categories"]

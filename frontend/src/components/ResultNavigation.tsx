@@ -1,6 +1,6 @@
 import { useRef, type KeyboardEvent } from 'react'
 
-export type ResultView = 'overview' | 'actions' | 'findings' | 'devops' | 'architecture' | 'evidence'
+export type ResultView = 'summary' | 'fix_plan' | 'issues' | 'technical_details'
 
 interface ResultNavigationProps {
   activeView: ResultView
@@ -9,12 +9,10 @@ interface ResultNavigationProps {
 }
 
 const RESULT_VIEWS: Array<{ id: ResultView; label: string }> = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'actions', label: 'Actions' },
-  { id: 'findings', label: 'Findings' },
-  { id: 'devops', label: 'DevOps' },
-  { id: 'architecture', label: 'Architecture' },
-  { id: 'evidence', label: 'Evidence' },
+  { id: 'summary', label: 'Summary' },
+  { id: 'fix_plan', label: 'Fix Plan' },
+  { id: 'issues', label: 'Issues' },
+  { id: 'technical_details', label: 'Technical Details' },
 ]
 
 export function ResultNavigation({ activeView, onViewChange, counts = {} }: ResultNavigationProps) {

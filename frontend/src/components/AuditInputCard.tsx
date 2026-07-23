@@ -81,6 +81,7 @@ export function AuditInputCard({
 
   const apiUnreachable = !!profilesError
   const dockerSupported = !!capabilities?.docker_isolated_execution?.supported
+  const localPathEnabled = capabilities?.local_path?.enabled !== false
   const canSubmit = sourceValue.trim().length > 0 && !disabled && !apiUnreachable && (analysisMode !== 'deep_isolated' || dockerSupported)
   const recommendedMode: AnalysisMode = sourceType === 'github_url' ? 'quick_safe' : 'deep_local'
   const selectedProfile = profiles.find((profile) => profile.profile_id === profileId)
@@ -123,6 +124,7 @@ export function AuditInputCard({
   }
 
   const setExample = (value: string, mode: SourceType) => {
+    if (mode === 'local_path' && !localPathEnabled) return
     setSourceType(mode)
     setAnalysisMode(mode === 'github_url' ? 'quick_safe' : 'deep_local')
     setSourceValue(value)
@@ -132,10 +134,19 @@ export function AuditInputCard({
     capabilities?.analyzers.filter((analyzer) => !analyzer.available && !analyzer.core) || []
 
   const selectSourceType = (mode: SourceType) => {
+    if (mode === 'local_path' && !localPathEnabled) return
     setSourceType(mode)
     setAnalysisMode(mode === 'github_url' ? 'quick_safe' : 'deep_local')
     setSourceValue('')
   }
+
+  useEffect(() => {
+    if (sourceType === 'local_path' && !localPathEnabled) {
+      setSourceType('github_url')
+      setAnalysisMode('quick_safe')
+      setSourceValue('')
+    }
+  }, [localPathEnabled, sourceType])
 
   return (
     <div className="w-full max-w-6xl animate-fade-up">
@@ -192,8 +203,9 @@ export function AuditInputCard({
                     key={mode}
                     type="button"
                     aria-pressed={sourceType === mode}
+                    disabled={mode === 'local_path' && !localPathEnabled}
                     onClick={() => selectSourceType(mode)}
-                    className={`min-h-11 rounded-lg px-3 text-sm font-medium transition-colors duration-150 ${
+                    className={`min-h-11 rounded-lg px-3 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-45 ${
                       sourceType === mode
                         ? 'bg-brand/10 text-brand shadow-[0_0_0_1px_rgba(34,211,238,0.16)_inset]'
                         : 'text-muted hover:bg-white/[0.03] hover:text-primary'
@@ -251,6 +263,11 @@ export function AuditInputCard({
                 <p className="mt-3 text-xs leading-5 text-faint">
                   Local audits can run project test evidence on the API server machine.
                   Use a path that exists where the backend is running.
+                </p>
+              )}
+              {!localPathEnabled && (
+                <p className="mt-3 rounded-lg border border-border bg-surface px-3 py-2 text-xs leading-5 text-muted">
+                  {capabilities?.local_path?.limitation || 'Local repository audits are disabled on this API instance. Public GitHub repository audits remain available.'}
                 </p>
               )}
             </div>

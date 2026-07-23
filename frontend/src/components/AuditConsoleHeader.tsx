@@ -1,6 +1,22 @@
 import { useEffect, useState } from 'react'
 import { getHealth } from '../api/client'
 
+function HeaderMark() {
+  return (
+    <svg
+      className="h-5 w-5"
+      viewBox="0 0 28 28"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <rect x="1" y="1" width="26" height="26" rx="7" stroke="currentColor" strokeWidth="2" />
+      <path d="M7 14h14M14 7v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M19.5 8.5h3M19.5 14h2.2M19.5 19.5h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
   const [health, setHealth] = useState<'ok' | 'error' | 'checking'>('checking')
 
@@ -19,7 +35,18 @@ export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
   }, [])
 
   return (
-    <header className="flex min-h-14 items-center justify-between border-b border-border bg-panel px-4 lg:px-6">
+    <header className="flex min-h-16 items-center justify-between border-b border-border bg-panel px-4 lg:px-6">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-brand/25 bg-brand/10 text-brand">
+          <HeaderMark />
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold tracking-tight text-primary">DrRepo</div>
+          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-faint">
+            Repository Audit
+          </div>
+        </div>
+      </div>
       <div className="flex items-center gap-3">
         <span
           role="status"
@@ -43,7 +70,6 @@ export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
           />
           {health === 'ok' ? 'API online' : health === 'error' ? 'API offline' : 'Checking'}
         </span>
-      </div>
       {onNew && (
         <button
           type="button"
@@ -53,6 +79,7 @@ export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
           New diagnostic
         </button>
       )}
+      </div>
     </header>
   )
 }
