@@ -56,6 +56,7 @@ export function AuditInputCard({
   const [installDependencies, setInstallDependencies] = useState(false)
   const [allowInstallNetwork, setAllowInstallNetwork] = useState(false)
   const [profilesError, setProfilesError] = useState<string | null>(null)
+  const [clipboardMessage, setClipboardMessage] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -138,6 +139,23 @@ export function AuditInputCard({
     setSourceType(mode)
     setAnalysisMode(mode === 'github_url' ? 'quick_safe' : 'deep_local')
     setSourceValue('')
+    setClipboardMessage(null)
+  }
+
+  const pasteGitHubUrl = async () => {
+    setClipboardMessage(null)
+    if (!navigator.clipboard?.readText) {
+      setClipboardMessage('Clipboard access is not available in this browser.')
+      return
+    }
+    try {
+      const pasted = await navigator.clipboard.readText()
+      if (pasted.trim().length > 0) {
+        setSourceValue(pasted.trim())
+      }
+    } catch {
+      setClipboardMessage('Paste was blocked by the browser. You can type the URL instead.')
+    }
   }
 
   useEffect(() => {
@@ -150,32 +168,24 @@ export function AuditInputCard({
 
   return (
     <div className="w-full max-w-6xl animate-fade-up">
-      <div className="mb-6 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+      <div className="mb-4">
         <div>
-          <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-brand/20 bg-brand/10 px-3 py-1 text-[11px] font-medium uppercase tracking-[0.18em] text-brand">
-            Evidence console
+          <div className="mb-1 text-[12px] font-medium uppercase tracking-[0.12em] text-brand">
+            Repository diagnostic
           </div>
-          <h1 className="text-2xl font-semibold tracking-tight text-primary sm:text-3xl">
+          <h1 className="text-[22px] font-semibold leading-tight tracking-tight text-primary sm:text-2xl">
             Diagnose repository readiness without pretending certainty.
           </h1>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-muted">
-            DrRepo audits Python projects with observed evidence, calibrated verdicts,
-            confidence limits, and a prioritized remediation plan.
-          </p>
-        </div>
-        <div className="rounded-2xl border border-border bg-surface/80 p-4 text-xs text-muted lg:w-72">
-          <div className="font-medium text-primary">What happens next</div>
-          <p className="mt-1 leading-5">
-            DrRepo scans the source, records what it could verify, and returns the
-            verdict plus the first actions to take.
+          <p className="mt-1.5 max-w-2xl text-sm leading-5 text-muted">
+            DrRepo audits Python projects with observed evidence, calibrated verdicts, confidence limits, and a prioritized remediation plan.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(320px,1fr)]">
         <form
           onSubmit={handleSubmit}
-          className="surface-raised rounded-2xl p-5 sm:p-6 lg:col-span-2 lg:p-7"
+          className="surface-raised self-start rounded-xl p-4 sm:p-5"
         >
           {apiUnreachable && (
             <div className="mb-5 rounded-xl border border-error/30 bg-error/5 p-4" role="alert">
@@ -186,9 +196,9 @@ export function AuditInputCard({
             </div>
           )}
 
-          <div className="space-y-5">
+          <div className="space-y-4">
             <div>
-              <div className="mb-2">
+              <div className="mb-1.5">
                 <label id="source-mode-label" className="text-xs font-medium text-faint">
                   Where is the repository?
                 </label>
@@ -207,8 +217,8 @@ export function AuditInputCard({
                     onClick={() => selectSourceType(mode)}
                     className={`min-h-11 rounded-lg px-3 text-sm font-medium transition-colors duration-150 disabled:cursor-not-allowed disabled:opacity-45 ${
                       sourceType === mode
-                        ? 'bg-brand/10 text-brand shadow-[0_0_0_1px_rgba(34,211,238,0.16)_inset]'
-                        : 'text-muted hover:bg-white/[0.03] hover:text-primary'
+                        ? 'bg-surface-2 text-brand ring-1 ring-brand/30'
+                        : 'text-muted hover:bg-surface-2/65 hover:text-primary'
                     }`}
                   >
                     {SOURCE_LABELS[mode]}
@@ -218,7 +228,7 @@ export function AuditInputCard({
             </div>
 
             <div>
-              <label htmlFor="sourceValue" className="mb-2 block text-xs font-medium uppercase tracking-[0.16em] text-faint">
+              <label htmlFor="sourceValue" className="mb-1.5 block text-xs font-medium uppercase tracking-[0.12em] text-faint">
                 {sourceType === 'local_path' ? 'Local repository path' : 'Public GitHub repository URL'}
               </label>
               <input
@@ -228,52 +238,80 @@ export function AuditInputCard({
                 onChange={(e) => setSourceValue(e.target.value)}
                 placeholder={SOURCE_PLACEHOLDERS[sourceType]}
                 autoFocus
-                className="w-full rounded-xl border border-border bg-base px-3.5 py-3 text-sm text-primary placeholder:text-faint focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
+                className="w-full min-w-0 rounded-xl border border-border bg-base px-3.5 py-2.5 text-sm text-primary placeholder:text-faint focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50"
               />
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="text-[11px] text-faint">Use sample:</span>
+              {sourceType === 'github_url' && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={pasteGitHubUrl}
+                    className="inline-flex min-h-10 items-center rounded-lg border border-border bg-surface px-3 text-sm font-medium text-muted transition-colors hover:border-brand/35 hover:text-brand"
+                  >
+                    Paste URL
+                  </button>
+                  {sourceValue.trim().length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSourceValue('')
+                        setClipboardMessage(null)
+                      }}
+                      className="inline-flex min-h-10 items-center rounded-lg border border-border bg-surface px-3 text-sm font-medium text-muted transition-colors hover:border-brand/35 hover:text-brand"
+                    >
+                      Clear
+                    </button>
+                  )}
+                  {clipboardMessage && (
+                    <span className="flex min-h-10 items-center text-sm leading-5 text-faint">
+                      {clipboardMessage}
+                    </span>
+                  )}
+                </div>
+              )}
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <span className="text-[13px] text-faint">Use sample:</span>
                 <button
                   type="button"
                   onClick={() => setExample(EXAMPLE_PATH, 'local_path')}
-                  className="inline-flex min-h-8 items-center rounded-full border border-border bg-base px-3 text-[11px] font-mono text-muted transition-colors hover:border-health/30 hover:text-health"
+                  className="inline-flex min-h-8 items-center rounded-full border border-border bg-base px-3 font-mono text-[12.5px] text-muted transition-colors hover:border-health/30 hover:text-health"
                 >
                   good local
                 </button>
                 <button
                   type="button"
                   onClick={() => setExample(EXAMPLE_BAD_PATH, 'local_path')}
-                  className="inline-flex min-h-8 items-center rounded-full border border-border bg-base px-3 text-[11px] font-mono text-muted transition-colors hover:border-warning/30 hover:text-warning"
+                  className="inline-flex min-h-8 items-center rounded-full border border-border bg-base px-3 font-mono text-[12.5px] text-muted transition-colors hover:border-warning/30 hover:text-warning"
                 >
                   bad local
                 </button>
                 <button
                   type="button"
                   onClick={() => setExample(EXAMPLE_GITHUB_URL, 'github_url')}
-                  className="inline-flex min-h-8 items-center rounded-full border border-border bg-base px-3 text-[11px] font-mono text-muted transition-colors hover:border-brand/30 hover:text-brand"
+                  className="inline-flex min-h-8 items-center rounded-full border border-border bg-base px-3 font-mono text-[12.5px] text-muted transition-colors hover:border-brand/30 hover:text-brand"
                 >
                   public GitHub
                 </button>
               </div>
               {sourceType === 'github_url' ? (
-                <p className="mt-3 rounded-lg border border-warning/25 bg-warning/5 px-3 py-2 text-xs leading-5 text-muted">
+                <p className="mt-2 rounded-lg border border-warning/25 bg-warning/5 px-3 py-1.5 text-[13px] leading-5 text-muted">
                   Public repositories only. DrRepo skips remote test execution for safety,
                   so evidence confidence may be partial or limited.
                 </p>
               ) : (
-                <p className="mt-3 text-xs leading-5 text-faint">
+                <p className="mt-2 text-[13px] leading-5 text-faint">
                   Local audits can run project test evidence on the API server machine.
                   Use a path that exists where the backend is running.
                 </p>
               )}
               {!localPathEnabled && (
-                <p className="mt-3 rounded-lg border border-border bg-surface px-3 py-2 text-xs leading-5 text-muted">
+                <p className="mt-2 rounded-lg border border-border bg-surface px-3 py-1.5 text-[13px] leading-5 text-muted">
                   {capabilities?.local_path?.limitation || 'Local repository audits are disabled on this API instance. Public GitHub repository audits remain available.'}
                 </p>
               )}
             </div>
 
             <div>
-              <label htmlFor="profileId" className="mb-2 block text-xs font-medium text-faint">
+              <label htmlFor="profileId" className="mb-1.5 block text-xs font-medium text-faint">
                 What are you preparing this project for?
               </label>
               <select
@@ -281,7 +319,7 @@ export function AuditInputCard({
                 value={profileId}
                 onChange={(e) => setProfileId(e.target.value)}
                 disabled={apiUnreachable}
-                className="w-full rounded-xl border border-border bg-base px-3.5 py-3 text-sm text-primary focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50 disabled:opacity-50"
+                className="w-full rounded-xl border border-border bg-base px-3.5 py-2.5 text-sm text-primary focus:border-brand focus:outline-none focus:ring-1 focus:ring-brand/50 disabled:opacity-50"
               >
                 {profiles.map((p) => (
                   <option key={p.profile_id} value={p.profile_id}>
@@ -289,23 +327,23 @@ export function AuditInputCard({
                   </option>
                 ))}
               </select>
-              {profilesError && <p className="mt-1.5 text-[11px] text-error">{profilesError}</p>}
-              <p className="mt-2 text-xs leading-5 text-faint">
+              {profilesError && <p className="mt-1.5 text-[13px] text-error">{profilesError}</p>}
+              <p className="mt-1.5 text-[13px] leading-5 text-faint">
                 {selectedProfile?.description || 'The goal changes remediation emphasis only; repository evidence stays the same.'}
               </p>
             </div>
 
-            <div className="rounded-xl border border-brand/20 bg-brand/5 px-4 py-3">
+            <div className="rounded-xl border border-brand/20 bg-brand/5 px-3.5 py-2.5">
               <div className="text-sm font-semibold text-primary">
                 Recommended audit: {ANALYSIS_MODE_LABELS[recommendedMode]}
               </div>
-              <p className="mt-1 text-xs leading-5 text-muted">
+              <p className="mt-0.5 text-[13px] leading-5 text-muted">
                 {sourceType === 'local_path'
                   ? 'Runs tests and coverage for a local repository you trust.'
                   : 'Analyzes the repository without running its tests.'}
               </p>
               {!isRecommendedMode && (
-                <p className="mt-2 text-xs text-brand">
+                <p className="mt-1 text-[13px] text-brand">
                   Current selection: {ANALYSIS_MODE_LABELS[analysisMode]}
                 </p>
               )}
@@ -314,7 +352,7 @@ export function AuditInputCard({
             <button
               type="submit"
               disabled={!canSubmit}
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-base shadow shadow-brand/20 transition-colors duration-150 ease-out-strong hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand/50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-brand px-4 py-2.5 text-sm font-semibold text-on-brand shadow shadow-brand/20 transition-colors duration-150 ease-out-strong hover:bg-brand-hover focus:outline-none focus:ring-2 focus:ring-brand/50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {submitLabel}
             </button>
@@ -339,29 +377,38 @@ export function AuditInputCard({
           </div>
         </form>
 
-        <div className="space-y-6 lg:col-span-1">
-          <div className="rounded-2xl border border-border bg-surface p-5">
-            <h3 className="mb-4 text-xs font-medium uppercase tracking-[0.16em] text-faint">
+        <aside className="self-start rounded-xl border border-border bg-surface p-4" aria-label="Launcher support">
+          <section>
+            <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-faint">
+              What happens next
+            </h3>
+            <p className="mt-1.5 text-sm leading-5 text-muted">
+              DrRepo scans the source, records what it could verify, and returns a verdict with the first repository action.
+            </p>
+          </section>
+
+          <section className="mt-4 border-t border-border pt-4">
+            <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-faint">
               Diagnostic flow
             </h3>
-            <ol className="space-y-4">
+            <ol className="space-y-2">
               {[
                 'Resolve the source and collect repository metadata.',
                 'Run available analyzers and record skipped or unavailable evidence.',
                 'Separate verdict, confidence, findings, and next fixes.',
               ].map((step, index) => (
                 <li key={step} className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-base text-[10px] font-mono text-brand">
+                  <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-border bg-base font-mono text-[12px] text-brand">
                     {index + 1}
                   </span>
                   <span className="text-sm leading-5 text-muted">{step}</span>
                 </li>
               ))}
             </ol>
-          </div>
+          </section>
 
-          <div className="rounded-2xl border border-border bg-surface p-5">
-            <h3 className="mb-3 text-xs font-medium uppercase tracking-[0.16em] text-faint">
+          <section className="mt-4 border-t border-border pt-4">
+            <h3 className="mb-2 text-xs font-medium uppercase tracking-[0.14em] text-faint">
               Analyzer capability
             </h3>
             {capabilityError ? (
@@ -394,12 +441,12 @@ export function AuditInputCard({
                     </summary>
                     <div className="mt-2 space-y-2">
                       {capabilities.setup.install_command && (
-                        <code className="block break-all font-mono text-[10px] leading-5 text-faint">
+                        <code className="block break-anywhere font-mono text-[12.5px] leading-5 text-faint">
                           {capabilities.setup.install_command}
                         </code>
                       )}
                       {capabilities.docker_isolated_execution.setup_command && (
-                        <code className="block break-all font-mono text-[10px] leading-5 text-faint">
+                        <code className="block break-anywhere font-mono text-[12.5px] leading-5 text-faint">
                           {capabilities.docker_isolated_execution.setup_command}
                         </code>
                       )}
@@ -410,14 +457,16 @@ export function AuditInputCard({
             ) : (
               <p className="text-xs leading-5 text-faint">Checking analyzer availability...</p>
             )}
-          </div>
+          </section>
 
+          <div className="mt-4 border-t border-border pt-4">
           <RecentAudits
             items={recentAudits}
             onSelect={handleSelectRecent}
             onClear={onClearRecent ?? (() => {})}
           />
-        </div>
+          </div>
+        </aside>
       </div>
     </div>
   )

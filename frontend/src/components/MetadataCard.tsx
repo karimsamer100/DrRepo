@@ -15,7 +15,7 @@ function PresenceChip({ label, present }: { label: string; present?: boolean }) 
   if (present === undefined) return null
   return (
     <span
-      className={`rounded-full border px-2 py-1 text-[10px] font-medium ${
+      className={`rounded-full border px-2 py-1 text-[12.5px] font-medium ${
         present
           ? 'border-health/25 bg-health/10 text-health'
           : 'border-warning/30 bg-warning/10 text-warning'
@@ -30,10 +30,10 @@ function CommandList({ title, commands }: { title: string; commands?: string[] }
   if (!commands || commands.length === 0) return null
   return (
     <div className="mt-2">
-      <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-faint">{title}</div>
+      <div className="text-[12px] font-medium uppercase tracking-[0.1em] text-faint">{title}</div>
       <div className="mt-1 space-y-1">
         {commands.slice(0, 3).map((command) => (
-          <code key={command} className="block break-all font-mono text-[10px] text-faint">
+          <code key={command} className="block break-anywhere font-mono text-[12.5px] text-faint">
             {command}
           </code>
         ))}
@@ -66,7 +66,7 @@ export function MetadataCard({ metadata, dependencyEnvironment, projectUnderstan
         <div className="mb-4 grid grid-cols-2 gap-3">
           {items.map((item) => (
             <div key={item.label} className="rounded-xl border border-border bg-base p-3">
-              <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-faint">{item.label}</div>
+              <div className="text-[12px] font-medium uppercase tracking-[0.1em] text-faint">{item.label}</div>
               <div className="mt-1 text-sm font-mono text-primary">{item.value}</div>
             </div>
           ))}
@@ -81,7 +81,7 @@ export function MetadataCard({ metadata, dependencyEnvironment, projectUnderstan
       </div>
       {identity && (
         <div className="mt-4 rounded-xl border border-border bg-base p-3">
-          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-faint">
+          <div className="text-[12px] font-medium uppercase tracking-[0.1em] text-faint">
             Project identity
           </div>
           <p className="mt-1 text-xs leading-5 text-muted">
@@ -90,7 +90,7 @@ export function MetadataCard({ metadata, dependencyEnvironment, projectUnderstan
           {(identity.frameworks?.length || identity.interfaces?.length) && (
             <div className="mt-2 flex flex-wrap gap-2">
               {[...(identity.frameworks || []), ...(identity.interfaces || [])].slice(0, 8).map((item) => (
-                <span key={item} className="rounded-full border border-border bg-surface px-2 py-1 text-[10px] text-faint">
+                <span key={item} className="rounded-full border border-border bg-surface px-2 py-1 text-[12.5px] text-faint">
                   {item}
                 </span>
               ))}
@@ -100,7 +100,7 @@ export function MetadataCard({ metadata, dependencyEnvironment, projectUnderstan
       )}
       {runnability && (
         <div className="mt-4 rounded-xl border border-border bg-base p-3">
-          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-faint">
+          <div className="text-[12px] font-medium uppercase tracking-[0.1em] text-faint">
             Runnability
           </div>
           <p className="mt-1 text-xs leading-5 text-muted">
@@ -113,14 +113,14 @@ export function MetadataCard({ metadata, dependencyEnvironment, projectUnderstan
       )}
       {entryPoints.length > 0 && (
         <details className="mt-4 rounded-xl border border-border bg-base p-3">
-          <summary className="cursor-pointer text-[10px] font-medium uppercase tracking-[0.14em] text-faint">
+          <summary className="cursor-pointer text-[12px] font-medium uppercase tracking-[0.1em] text-faint">
             Entry points
           </summary>
           <div className="mt-2 space-y-2">
             {entryPoints.slice(0, 5).map((entry) => (
               <div key={`${entry.kind}-${entry.path}-${entry.command}`} className="text-xs leading-5 text-muted">
                 <span className="text-primary">{entry.kind || 'entry'}</span>: {entry.path}
-                {entry.command && <code className="ml-1 font-mono text-[10px] text-faint">{entry.command}</code>}
+                {entry.command && <code className="ml-1 break-anywhere font-mono text-[12.5px] text-faint">{entry.command}</code>}
               </div>
             ))}
           </div>
@@ -128,7 +128,7 @@ export function MetadataCard({ metadata, dependencyEnvironment, projectUnderstan
       )}
       {dependencyEnvironment && (
         <div className="mt-4 rounded-xl border border-border bg-base p-3">
-          <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-faint">
+          <div className="text-[12px] font-medium uppercase tracking-[0.1em] text-faint">
             Dependency environment
           </div>
           <p className="mt-1 text-xs leading-5 text-muted">
@@ -136,7 +136,7 @@ export function MetadataCard({ metadata, dependencyEnvironment, projectUnderstan
             Lock file: {dependencyEnvironment.lock_file_exists ? 'yes' : 'no'}.
           </p>
           {dependencyEnvironment.likely_install_command && (
-            <code className="mt-2 block break-all font-mono text-[10px] text-faint">
+            <code className="mt-2 block break-anywhere font-mono text-[12.5px] text-faint">
               {dependencyEnvironment.likely_install_command}
             </code>
           )}

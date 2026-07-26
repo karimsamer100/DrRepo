@@ -68,7 +68,7 @@ export function FindingsList({ audit }: FindingsListProps) {
           Findings
         </div>
         <p className="mt-2 text-sm leading-6 text-muted">
-          No analyzer findings were returned from the evidence DrRepo could verify.
+          No important issues were found in the checks DrRepo could run.
         </p>
       </section>
     )
@@ -80,17 +80,21 @@ export function FindingsList({ audit }: FindingsListProps) {
       : severityFilter === 'all'
       ? families
       : families.filter((family) => family.severity.toLowerCase() === severityFilter)
-  const totalFindings = families.reduce((sum, family) => sum + family.count, 0)
+  const mustFixGroups = families.filter((family) => matchesUserFilter(family.severity, 'must_fix')).length
+  const importantGroups = families.filter((family) => matchesUserFilter(family.severity, 'important')).length
+  const minorFindings = families
+    .filter((family) => matchesUserFilter(family.severity, 'minor'))
+    .reduce((sum, family) => sum + family.count, 0)
 
   return (
-    <section className="rounded-2xl border border-border bg-surface p-4 animate-fade-up [animation-delay:180ms]">
-      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+    <section className="rounded-xl border border-border bg-surface p-3.5 animate-fade-up [animation-delay:180ms] sm:p-4">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-faint">
-            Findings
+            Issue groups
           </h3>
-          <p className="mt-1 text-sm text-muted">
-            {totalFindings} grouped {totalFindings === 1 ? 'finding' : 'findings'} across {families.length} area{families.length === 1 ? '' : 's'}.
+          <p className="mt-1 text-sm leading-5 text-muted">
+            {mustFixGroups} must-fix issue group{mustFixGroups === 1 ? '' : 's'}, {importantGroups} important issue group{importantGroups === 1 ? '' : 's'}, and {minorFindings} minor technical finding{minorFindings === 1 ? '' : 's'}.
           </p>
         </div>
         <button
@@ -102,14 +106,14 @@ export function FindingsList({ audit }: FindingsListProps) {
         </button>
       </div>
 
-      <div className="mb-3 flex flex-wrap gap-2" aria-label="Filter issues by priority">
+      <div className="mb-2.5 flex flex-wrap gap-2" aria-label="Filter issues by priority">
         {USER_FILTERS.map((filter) => (
           <button
             key={filter}
             type="button"
             aria-pressed={severityFilter === filter}
             onClick={() => setSeverityFilter(filter)}
-            className={`min-h-8 rounded-full border px-3 text-[11px] font-medium capitalize transition-colors ${
+            className={`min-h-9 rounded-full border px-3 text-sm font-medium capitalize transition-colors ${
               severityFilter === filter
                 ? 'border-brand/30 bg-brand/10 text-brand'
                 : 'border-border bg-base text-faint hover:text-primary'
@@ -119,7 +123,7 @@ export function FindingsList({ audit }: FindingsListProps) {
           </button>
         ))}
       </div>
-      <details className="mb-4">
+      <details className="mb-3">
         <summary className="inline-flex min-h-8 cursor-pointer items-center text-xs text-muted transition-colors hover:text-primary">
           More filters
         </summary>
@@ -130,7 +134,7 @@ export function FindingsList({ audit }: FindingsListProps) {
               type="button"
               aria-pressed={severityFilter === filter}
               onClick={() => setSeverityFilter(filter)}
-              className={`min-h-8 rounded-full border px-3 text-[11px] font-medium capitalize transition-colors ${
+              className={`min-h-8 rounded-full border px-3 text-sm font-medium capitalize transition-colors ${
                 severityFilter === filter
                   ? 'border-brand/30 bg-brand/10 text-brand'
                   : 'border-border bg-base text-faint hover:text-primary'
@@ -150,29 +154,60 @@ export function FindingsList({ audit }: FindingsListProps) {
         <div className="space-y-3">
           {visibleFamilies.map((family) => {
             const codeGroups = buildCodeGroups(family.instances)
+            const locations = Array.from(
+              new Set(
+                Array.from(codeGroups.values()).flatMap((group) => group.locations)
+              )
+            )
+            const fileCount = new Set(locations.map((location) => location.split(':')[0])).size
+            const previewLocations = locations.slice(0, 3)
+            const lowPriority = matchesUserFilter(family.severity, 'minor')
 
             return (
               <article
                 key={family.family}
-                className={`rounded-2xl border-l-4 p-4 ${familyColor(family.family)}`}
+                className={`rounded-xl border-l-4 p-3.5 ${familyColor(family.family)} ${lowPriority ? 'opacity-90' : ''}`}
               >
                 <div className="flex flex-wrap items-center gap-2">
                   <span
-                    className={`rounded border px-2 py-1 text-[10px] font-medium uppercase ${severityColor(
+                    className={`rounded border px-2 py-1 text-[12.5px] font-medium uppercase ${severityColor(
                       family.severity
                     )}`}
                   >
                     {family.severity}
                   </span>
                   <h4 className="text-sm font-semibold text-primary">{family.family}</h4>
-                  <span className="rounded-full bg-surface-2 px-2 py-1 text-[10px] text-faint">
-                    {family.count} {family.count === 1 ? 'finding' : 'findings'}
+                  <span className="rounded-full bg-surface-2 px-2 py-1 text-[12.5px] text-faint">
+                    {family.count} occurrence{family.count === 1 ? '' : 's'}
+                  </span>
+                  <span className="rounded-full bg-surface-2 px-2 py-1 text-[12.5px] text-faint">
+                    {Array.from(codeGroups).length} grouped pattern{Array.from(codeGroups).length === 1 ? '' : 's'}
+                  </span>
+                  <span className="rounded-full bg-surface-2 px-2 py-1 text-[12.5px] text-faint">
+                    {fileCount || 'No'} affected file{fileCount === 1 ? '' : 's'}
                   </span>
                 </div>
 
-                <details className="mt-3">
+                {previewLocations.length > 0 && (
+                  <div className="mt-2.5 flex flex-wrap gap-2">
+                    {previewLocations.map((location) => (
+                      <span key={location} className="max-w-full truncate rounded-full border border-border bg-base px-2 py-1 font-mono text-[12.5px] text-faint">
+                        {location}
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                <p className="mt-2.5 text-[13px] leading-5 text-muted">
+                  Action: address this grouped pattern at the representative locations, then re-run the relevant analyzer.
+                </p>
+                <p className="mt-1 text-[13px] leading-5 text-faint">
+                  Success check: this issue group no longer appears, or an intentional exception is documented.
+                </p>
+
+                <details className="mt-2.5">
                   <summary className="inline-flex min-h-9 cursor-pointer items-center rounded-lg text-xs text-muted transition-colors hover:text-primary">
-                    Review grouped evidence
+                    {lowPriority ? 'Open minor technical evidence' : 'Review grouped evidence'}
                   </summary>
                   <div className="mt-2 space-y-3">
                     {Array.from(codeGroups.values()).map((group) => {
@@ -185,17 +220,17 @@ export function FindingsList({ audit }: FindingsListProps) {
                             <p className="min-w-0 break-words text-sm leading-6 text-primary">
                               {group.message}
                             </p>
-                            <span className="shrink-0 rounded-full bg-surface-2 px-2 py-1 text-[10px] font-mono text-faint">
+                            <span className="shrink-0 rounded-full bg-surface-2 px-2 py-1 font-mono text-[12.5px] text-faint">
                               {group.count}x
                             </span>
                           </div>
                           {showCodes && group.code && (
-                            <div className="mt-2 break-all font-mono text-[10px] text-faint">
+                            <div className="mt-2 break-anywhere font-mono text-[12.5px] text-faint">
                               {group.code}
                             </div>
                           )}
                           {locPreview.length > 0 && (
-                            <div className="mt-2 break-all font-mono text-[10px] leading-5 text-faint">
+                            <div className="mt-2 break-anywhere font-mono text-[12.5px] leading-5 text-faint">
                               {locPreview.join(', ')}
                               {moreCount > 0 && ` +${moreCount} more`}
                             </div>

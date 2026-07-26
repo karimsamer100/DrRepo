@@ -46,7 +46,7 @@ export function AnalyzerStatusGrid({ sections }: AnalyzerStatusGridProps) {
             {verified.length} of {entries.length} analyzers completed.
           </p>
         </div>
-        <span className="rounded-full border border-border bg-base px-2 py-1 text-[10px] font-mono text-faint">
+        <span className="rounded-full border border-border bg-base px-2 py-1 font-mono text-[12.5px] text-faint">
           {limitations.length + partial.length} limited
         </span>
       </div>
@@ -60,11 +60,11 @@ export function AnalyzerStatusGrid({ sections }: AnalyzerStatusGridProps) {
             <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-3 text-xs [&::-webkit-details-marker]:hidden">
               <span className="min-w-0">
                 <span className="font-mono font-medium">{result.tool}</span>
-                <span className="ml-2 text-[10px] uppercase tracking-[0.14em] opacity-70">
+                <span className="ml-2 text-[12px] uppercase tracking-[0.1em] opacity-80">
                   {section}
                 </span>
               </span>
-              <span className="shrink-0 text-[10px] font-medium uppercase tracking-[0.12em]">
+              <span className="shrink-0 text-[12px] font-medium uppercase tracking-[0.1em]">
                 {resultStatusLabel(result)}
               </span>
             </summary>
@@ -72,7 +72,7 @@ export function AnalyzerStatusGrid({ sections }: AnalyzerStatusGridProps) {
               {statusExplanation(result)}
             </p>
             {result.errors && result.errors.length > 0 && result.status === 'failed_to_run' && (
-              <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap break-words rounded-lg border border-error/20 bg-base p-2 font-mono text-[10px] text-error/90">
+              <pre className="mt-2 max-h-24 overflow-auto whitespace-pre-wrap break-anywhere rounded-lg border border-error/20 bg-base p-2 font-mono text-[12.5px] leading-5 text-error/90">
                 {result.errors.slice(0, 2).join('\n')}
               </pre>
             )}

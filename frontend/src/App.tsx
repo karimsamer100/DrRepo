@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { AuditConsoleHeader } from './components/AuditConsoleHeader'
 import { AuditInputCard } from './components/AuditInputCard'
 import { LoadingState } from './components/LoadingState'
@@ -24,6 +24,29 @@ import { getFindingFamilies } from './lib/score'
 import { getCapabilities } from './api/client'
 import type { AuditResponse, CapabilitiesResponse } from './types/api'
 
+export type ThemePreference = 'system' | 'light' | 'dark'
+export type ResolvedTheme = 'light' | 'dark'
+
+const THEME_STORAGE_KEY = 'drrepo.themePreference'
+
+function themePreferenceFromStorage(): ThemePreference {
+  if (typeof window === 'undefined') return 'system'
+  const stored = window.localStorage.getItem(THEME_STORAGE_KEY)
+  return stored === 'light' || stored === 'dark' || stored === 'system' ? stored : 'system'
+}
+
+function resolveTheme(preference: ThemePreference): ResolvedTheme {
+  if (preference !== 'system') return preference
+  if (typeof window === 'undefined') return 'dark'
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+}
+
+function applyDocumentTheme(preference: ThemePreference) {
+  if (typeof document === 'undefined') return
+  document.documentElement.dataset.themePreference = preference
+  document.documentElement.dataset.theme = resolveTheme(preference)
+}
+
 function ResultLayout({
   data,
   activeView,
@@ -38,8 +61,17 @@ function ResultLayout({
     test_analysis: data.audit.test_analysis,
     repository_analysis: data.audit.repository_analysis,
   }
-  const findingCount = getFindingFamilies(data.audit).reduce((total, family) => total + family.count, 0)
+  const findingCount = getFindingFamilies(data.audit).filter((family) => family.count > 0).length
   const actionCount = data.audit.recommendations_v2?.length || 0
+  const releaseHasBlockers = (data.audit.devops_readiness?.blockers?.length || 0) > 0
+  const resultTopRef = useRef<HTMLDivElement | null>(null)
+
+  const handleViewChange = (view: ResultView) => {
+    onViewChange(view)
+    window.requestAnimationFrame(() => {
+      resultTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' })
+    })
+  }
 
   const renderActiveView = () => {
     switch (activeView) {
@@ -56,59 +88,68 @@ function ResultLayout({
         return <FindingsList audit={data.audit} />
       case 'technical_details':
         return (
-          <div className="space-y-5">
-            <details open className="rounded-2xl border border-border bg-surface p-4">
-              <summary className="cursor-pointer text-sm font-semibold text-primary">Release and operational readiness</summary>
-              <div className="mt-4">
+          <div className="space-y-2.5">
+            <details open={releaseHasBlockers || undefined} className="rounded-xl border border-border bg-surface p-3.5">
+              <summary className="cursor-pointer text-sm font-semibold text-primary">
+                Release and operational readiness
+                {releaseHasBlockers && <span className="ml-2 text-sm font-medium text-error">blockers found</span>}
+              </summary>
+              <div className="mt-3">
                 <DevOpsReadinessPanel readiness={data.audit.devops_readiness} />
               </div>
             </details>
-            <details open className="rounded-2xl border border-border bg-surface p-4">
+            <details className="rounded-xl border border-border bg-surface p-3.5">
               <summary className="cursor-pointer text-sm font-semibold text-primary">Project structure and risk areas</summary>
-              <div className="mt-4">
+              <div className="mt-3">
                 <ArchitecturePanel assessment={data.audit.architecture_assessment} />
               </div>
             </details>
-            <details open className="rounded-2xl border border-border bg-surface p-4">
+            <details open={!releaseHasBlockers || undefined} className="rounded-xl border border-border bg-surface p-3.5">
               <summary className="cursor-pointer text-sm font-semibold text-primary">What DrRepo checked</summary>
-              <div className="mt-4 space-y-5">
-              {data.audit.diagnosis?.evidence_confidence && (
-                <section className="rounded-2xl border border-border bg-surface p-4">
-                  <h2 className="text-sm font-semibold text-primary">Evidence confidence</h2>
-                  <p className="mt-2 text-sm leading-6 text-muted">
-                    {data.audit.diagnosis.evidence_confidence.summary ||
-                      `Confidence is ${data.audit.diagnosis.evidence_confidence.label || 'unknown'} based on completed and limited analyzers.`}
-                  </p>
-                </section>
-              )}
-              <AnalyzerStatusGrid sections={analyzerSections} />
-              <MetadataCard
-                metadata={data.audit.metadata}
-                dependencyEnvironment={data.audit.dependency_environment}
-                projectUnderstanding={data.audit.project_understanding}
-              />
+              <div className="mt-3 space-y-4">
+                {data.audit.diagnosis?.evidence_confidence && (
+                  <section className="rounded-xl border border-border bg-base p-3.5">
+                    <h2 className="text-sm font-semibold text-primary">Evidence confidence</h2>
+                    <p className="mt-1.5 text-sm leading-5 text-muted">
+                      {data.audit.diagnosis.evidence_confidence.summary ||
+                        `Confidence is ${data.audit.diagnosis.evidence_confidence.label || 'unknown'} based on completed and limited analyzers.`}
+                    </p>
+                  </section>
+                )}
+                <AnalyzerStatusGrid sections={analyzerSections} />
+                <MetadataCard
+                  metadata={data.audit.metadata}
+                  dependencyEnvironment={data.audit.dependency_environment}
+                  projectUnderstanding={data.audit.project_understanding}
+                />
               </div>
             </details>
-            <details className="rounded-2xl border border-border bg-surface p-4">
-              <summary className="cursor-pointer text-sm font-semibold text-primary">Export</summary>
-              <div className="mt-4 grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-              <ExportActions data={data} />
-              <MarkdownPreview content={data.markdown} />
+            <details className="rounded-xl border border-border bg-surface p-3.5">
+              <summary className="cursor-pointer text-sm font-semibold text-primary">Export and report</summary>
+              <div className="mt-3 space-y-3">
+                <ExportActions data={data} />
+                <details className="rounded-xl border border-border bg-base p-3">
+                  <summary className="cursor-pointer text-sm font-semibold text-primary">Markdown preview</summary>
+                  <div className="mt-3">
+                    <MarkdownPreview content={data.markdown} />
+                  </div>
+                </details>
               </div>
             </details>
           </div>
         )
       case 'summary':
       default:
-        return <ResultOverview data={data} onNavigate={onViewChange} />
+        return <ResultOverview data={data} onNavigate={handleViewChange} />
     }
   }
 
   return (
-    <div className="pb-12">
+    <div className="pb-10">
+      <div ref={resultTopRef} />
       <ResultNavigation
         activeView={activeView}
-        onViewChange={onViewChange}
+        onViewChange={handleViewChange}
         counts={{ fix_plan: actionCount, issues: findingCount }}
       />
       <div
@@ -130,10 +171,27 @@ export default function App() {
   const [capabilities, setCapabilities] = useState<CapabilitiesResponse | null>(null)
   const [capabilityError, setCapabilityError] = useState<string | null>(null)
   const [activeResultView, setActiveResultView] = useState<ResultView>('summary')
+  const [themePreference, setThemePreference] = useState<ThemePreference>(() => themePreferenceFromStorage())
+  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() => resolveTheme(themePreferenceFromStorage()))
 
   useEffect(() => {
     setRecentAudits(loadRecentAudits())
   }, [])
+
+  useEffect(() => {
+    applyDocumentTheme(themePreference)
+    setResolvedTheme(resolveTheme(themePreference))
+    window.localStorage.setItem(THEME_STORAGE_KEY, themePreference)
+
+    if (themePreference !== 'system') return
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const handleChange = () => {
+      applyDocumentTheme('system')
+      setResolvedTheme(resolveTheme('system'))
+    }
+    media.addEventListener('change', handleChange)
+    return () => media.removeEventListener('change', handleChange)
+  }, [themePreference])
 
   useEffect(() => {
     let cancelled = false
@@ -182,6 +240,14 @@ export default function App() {
     setRecentAudits(clearRecentAudits())
   }
 
+  const handleNewAudit = () => {
+    reset()
+    setActiveResultView('summary')
+    window.requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' })
+    })
+  }
+
   const handleRetry = () => {
     const request = state.lastRequest
     if (!request) return
@@ -199,20 +265,25 @@ export default function App() {
   const errorInfo = state.status === 'error' ? classifyError(state.error) : null
 
   return (
-    <div className="flex h-dvh w-full flex-col bg-base text-primary antialiased">
+    <div className="flex min-h-dvh w-full flex-col bg-base text-primary antialiased">
       <a href="#main-content" className="skip-link">
         Skip to diagnostic
       </a>
       <div className="flex min-w-0 flex-1 flex-col">
-        <AuditConsoleHeader onNew={state.status !== 'idle' ? reset : undefined} />
+        <AuditConsoleHeader
+          onNew={handleNewAudit}
+          themePreference={themePreference}
+          resolvedTheme={resolvedTheme}
+          onThemePreferenceChange={setThemePreference}
+        />
         <main
           id="main-content"
-          className="flex-1 overflow-y-auto px-4 py-5 sm:p-6"
+          className="min-w-0 flex-1 px-4 py-4 sm:px-6 sm:py-5"
           aria-busy={state.status === 'loading'}
         >
-          <div className="mx-auto max-w-6xl">
+          <div className="mx-auto max-w-[1220px]">
             {state.status === 'idle' && (
-              <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center sm:min-h-[60vh]">
+              <div className="py-0">
                 <AuditInputCard
                   onSubmit={execute}
                   recentAudits={recentAudits}
@@ -224,13 +295,13 @@ export default function App() {
             )}
 
             {state.status === 'loading' && (
-              <div className="flex min-h-[calc(100dvh-9rem)] items-center justify-center sm:min-h-[60vh]">
+              <div className="flex min-h-[60vh] items-center justify-center">
                 <LoadingState request={state.lastRequest} />
               </div>
             )}
 
             {state.status === 'error' && errorInfo && (
-              <div className="flex min-h-[calc(100dvh-9rem)] flex-col items-center justify-center sm:min-h-[60vh] animate-fade-up">
+              <div className="flex min-h-[60vh] flex-col items-center justify-center animate-fade-up">
                 <div className="w-full max-w-2xl rounded-2xl border border-error/30 bg-error/5 p-5 sm:p-6" role="alert">
                   <div className="mb-3 inline-flex rounded-full border border-error/30 bg-error/10 px-2.5 py-1 text-[11px] font-medium uppercase tracking-[0.16em] text-error">
                     Audit stopped
@@ -238,9 +309,14 @@ export default function App() {
                   <h1 className="text-xl font-semibold text-primary">{errorInfo.title}</h1>
                   <p className="mt-2 text-sm leading-6 text-muted">{errorInfo.summary}</p>
                   {errorInfo.detail && (
-                    <pre className="mt-4 max-h-36 overflow-auto whitespace-pre-wrap break-words rounded-xl border border-border bg-base p-3 font-mono text-xs leading-5 text-faint">
-                      {errorInfo.detail}
-                    </pre>
+                    <details className="mt-4 rounded-xl border border-border bg-base p-3">
+                      <summary className="cursor-pointer text-sm font-medium text-muted transition-colors hover:text-primary">
+                        Technical error detail
+                      </summary>
+                      <pre className="mt-3 max-h-36 overflow-auto whitespace-pre-wrap break-anywhere font-mono text-[12.5px] leading-5 text-faint">
+                        {errorInfo.detail}
+                      </pre>
+                    </details>
                   )}
                   <p className="mt-4 text-sm text-primary">{errorInfo.nextAction}</p>
                   <div className="mt-5 flex flex-col gap-3 sm:flex-row">
@@ -248,7 +324,7 @@ export default function App() {
                       <button
                         type="button"
                         onClick={handleRetry}
-                        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-base transition-colors hover:bg-brand-hover"
+                        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-brand px-4 py-2 text-sm font-semibold text-on-brand transition-colors hover:bg-brand-hover"
                       >
                         Retry same diagnostic
                       </button>
@@ -267,14 +343,14 @@ export default function App() {
 
             {state.status === 'done' && state.data && (
               <>
-                <div className="mb-6 border-b border-border pb-4">
-                  <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-faint">
+                <div className="mb-3 border-b border-border pb-3">
+                  <div className="text-[12px] font-medium uppercase tracking-[0.12em] text-faint">
                     Diagnostic result
                   </div>
-                  <h1 className="mt-1 text-xl font-semibold tracking-tight text-primary">
+                  <h1 className="mt-0.5 text-lg font-semibold tracking-tight text-primary">
                     Repository evidence review
                   </h1>
-                  <p className="mt-1 break-all font-mono text-xs text-faint">
+                  <p className="mt-0.5 break-anywhere font-mono text-[12.5px] leading-5 text-faint">
                     {state.data.source_value}
                   </p>
                 </div>

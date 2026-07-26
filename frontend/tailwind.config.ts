@@ -1,31 +1,34 @@
 import type { Config } from 'tailwindcss'
 
 const config: Config = {
-  darkMode: 'class',
+  darkMode: ['class', '[data-theme="dark"]'],
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
       colors: {
-        base: '#0b0f17',
-        panel: '#0e1420',
-        surface: '#121826',
-        'surface-2': '#1a2233',
-        raised: '#1a2332',
-        border: '#243044',
+        base: 'rgb(var(--color-base) / <alpha-value>)',
+        panel: 'rgb(var(--color-panel) / <alpha-value>)',
+        surface: 'rgb(var(--color-surface) / <alpha-value>)',
+        'surface-2': 'rgb(var(--color-surface-2) / <alpha-value>)',
+        raised: 'rgb(var(--color-raised) / <alpha-value>)',
+        border: 'rgb(var(--color-border) / <alpha-value>)',
+        primary: 'rgb(var(--color-primary) / <alpha-value>)',
         brand: {
-          DEFAULT: '#22d3ee',
-          hover: '#06b6d4',
+          DEFAULT: 'rgb(var(--color-brand) / <alpha-value>)',
+          hover: 'rgb(var(--color-brand-hover) / <alpha-value>)',
         },
+        'on-brand': 'rgb(var(--color-on-brand) / <alpha-value>)',
         health: {
-          DEFAULT: '#22c55e',
-          dim: '#15803d',
+          DEFAULT: 'rgb(var(--color-health) / <alpha-value>)',
+          dim: 'rgb(var(--color-health-dim) / <alpha-value>)',
         },
-        attention: '#eab308',
-        warning: '#f59e0b',
-        error: '#ef4444',
-        critical: '#dc2626',
-        muted: '#94a3b8',
-        faint: '#7c8aa0',
+        info: 'rgb(var(--color-info) / <alpha-value>)',
+        attention: 'rgb(var(--color-attention) / <alpha-value>)',
+        warning: 'rgb(var(--color-warning) / <alpha-value>)',
+        error: 'rgb(var(--color-error) / <alpha-value>)',
+        critical: 'rgb(var(--color-critical) / <alpha-value>)',
+        muted: 'rgb(var(--color-muted) / <alpha-value>)',
+        faint: 'rgb(var(--color-faint) / <alpha-value>)',
       },
       fontFamily: {
         sans: [
@@ -52,12 +55,16 @@ const config: Config = {
           'monospace',
         ],
       },
+      fontSize: {
+        xs: ['0.8125rem', { lineHeight: '1.35rem' }],
+        sm: ['0.9375rem', { lineHeight: '1.55rem' }],
+      },
       transitionTimingFunction: {
         'out-strong': 'cubic-bezier(0.23, 1, 0.32, 1)',
         'in-out-strong': 'cubic-bezier(0.77, 0, 0.175, 1)',
       },
       boxShadow: {
-        raised: '0 0 0 1px rgba(255,255,255,0.04) inset, 0 8px 24px -6px rgba(0,0,0,0.4)',
+        raised: 'var(--shadow-raised)',
       },
       animation: {
         shimmer: 'shimmer 2s cubic-bezier(0.4, 0, 0.6, 1) infinite',

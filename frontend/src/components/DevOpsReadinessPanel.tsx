@@ -33,7 +33,7 @@ export function DevOpsReadinessPanel({ readiness }: DevOpsReadinessPanelProps) {
             {readiness.verdict?.replace(/_/g, ' ') || 'unknown'} · {scoreText(readiness.observed_score)} observed · confidence {readiness.evidence_confidence || 'unknown'}
           </p>
         </div>
-        <span className="self-start rounded-full border border-border bg-base px-2.5 py-1 font-mono text-[10px] text-faint">
+        <span className="self-start rounded-full border border-border bg-base px-2.5 py-1 font-mono text-[12.5px] text-faint">
           Static only
         </span>
       </div>
@@ -62,11 +62,16 @@ export function DevOpsReadinessPanel({ readiness }: DevOpsReadinessPanelProps) {
           </ul>
         </div>
       )}
+      {blockers.length === 0 && (
+        <div className="mb-4 rounded-xl border border-health/25 bg-health/5 p-3 text-sm leading-6 text-muted">
+          <span className="font-medium text-health">No release blockers were confirmed</span> by the checks DrRepo could run.
+        </div>
+      )}
 
       {strengths.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
           {strengths.slice(0, 5).map((strength) => (
-            <span key={strength} className="rounded-full border border-health/25 bg-health/5 px-2 py-1 text-[10px] text-health">
+            <span key={strength} className="rounded-full border border-health/25 bg-health/5 px-2 py-1 text-[12.5px] text-health">
               {strength}
             </span>
           ))}
@@ -78,7 +83,7 @@ export function DevOpsReadinessPanel({ readiness }: DevOpsReadinessPanelProps) {
           <details key={dimension.id || dimension.title} className={`rounded-xl border px-3 py-2 ${statusTone(dimension.status)}`}>
             <summary className="flex min-h-8 cursor-pointer list-none items-center justify-between gap-3 text-xs [&::-webkit-details-marker]:hidden">
               <span className="font-medium text-primary">{dimension.title || dimension.id}</span>
-              <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.12em]">
+              <span className="shrink-0 font-mono text-[12px] uppercase tracking-[0.1em]">
                 {dimension.applicability === 'not_applicable' ? 'not applicable' : `${dimension.status || 'unknown'} · ${scoreText(dimension.score)}`}
               </span>
             </summary>

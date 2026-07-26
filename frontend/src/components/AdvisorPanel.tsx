@@ -56,7 +56,7 @@ function EvidenceChips({ items }: { items: AdvisorAction[] }) {
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       {evidence.slice(0, 4).map((item) => (
-        <span key={item} className="rounded-full border border-border bg-base px-2 py-1 text-[10px] font-mono text-faint">
+        <span key={item} className="break-anywhere rounded-full border border-border bg-base px-2 py-1 font-mono text-[12.5px] text-faint">
           {item}
         </span>
       ))}
@@ -98,11 +98,23 @@ function ActionBody({ group }: { group: ActionGroup }) {
   )
 }
 
-function StructuredRecommendationCard({ rec }: { rec: StructuredRecommendation }) {
+function StructuredRecommendationCard({
+  rec,
+  emphasis = 'secondary',
+}: {
+  rec: StructuredRecommendation
+  emphasis?: 'primary' | 'secondary'
+}) {
   const evidenceItems = rec.evidence_items || []
   const affectedFiles = rec.affected_files || []
   return (
-    <li className="rounded-2xl border border-border bg-base p-4">
+    <li
+      className={`fix-plan-action-card rounded-xl border p-3.5 ${
+        emphasis === 'primary'
+          ? 'fix-plan-action-card-primary border-brand/35 bg-base'
+          : 'border-border bg-base'
+      }`}
+    >
       <div className="flex items-start gap-3">
         <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-brand/30 bg-brand/10 font-mono text-xs text-brand">
           {rec.priority || '-'}
@@ -110,40 +122,37 @@ function StructuredRecommendationCard({ rec }: { rec: StructuredRecommendation }
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <div className="font-semibold text-primary">{rec.title}</div>
-            <span className="rounded-full border border-border bg-surface px-2 py-0.5 text-[10px] text-faint">
-              {rec.recommendation_type?.replace(/_/g, ' ') || 'recommendation'}
-            </span>
-            {rec.profile_relevance && (
-              <span className="rounded-full border border-brand/25 bg-brand/5 px-2 py-0.5 text-[10px] text-brand">
+            {rec.profile_relevance && rec.profile_relevance !== 'medium' && (
+              <span className="rounded-full border border-brand/25 bg-brand/5 px-2 py-0.5 text-[12.5px] text-brand">
                 {rec.profile_relevance} relevance
               </span>
             )}
           </div>
-          {rec.why_it_matters && <p className="mt-2 text-sm leading-6 text-muted">{rec.why_it_matters}</p>}
+          {rec.why_it_matters && <p className="mt-1.5 text-sm leading-5 text-muted">{rec.why_it_matters}</p>}
           {rec.recommended_steps && rec.recommended_steps.length > 0 && (
-            <ol className="mt-3 list-decimal space-y-1 pl-4 text-xs leading-5 text-muted">
+            <ol className="mt-2 list-decimal space-y-1 pl-4 text-sm leading-5 text-muted">
               {rec.recommended_steps.slice(0, 4).map((step) => (
                 <li key={step}>{step}</li>
               ))}
             </ol>
           )}
           {(affectedFiles.length > 0 || evidenceItems.length > 0) && (
-            <div className="mt-3 flex flex-wrap gap-2">
+            <div className="mt-2 flex flex-wrap gap-1.5">
               {affectedFiles.slice(0, 3).map((path) => (
-                <span key={path} className="rounded-full border border-border bg-surface px-2 py-1 font-mono text-[10px] text-faint">
+                <span key={path} className="break-anywhere rounded-full border border-border bg-surface px-2 py-1 font-mono text-[12.5px] text-faint">
                   {path}
                 </span>
               ))}
               {evidenceItems.slice(0, 3).map((item) => (
-                <span key={`${item.finding_id || item.code}-${item.path || item.analyzer}`} className="rounded-full border border-border bg-surface px-2 py-1 font-mono text-[10px] text-faint">
+                <span key={`${item.finding_id || item.code}-${item.path || item.analyzer}`} className="break-anywhere rounded-full border border-border bg-surface px-2 py-1 font-mono text-[12.5px] text-faint">
                   {[item.code || item.analyzer, item.path, item.line].filter(Boolean).join(':')}
                 </span>
               ))}
             </div>
           )}
           {rec.success_check && (
-            <div className="mt-3 rounded-lg border border-border bg-surface p-2 text-xs leading-5 text-muted">
-              Success check: {rec.success_check}
+            <div className="mt-2.5 rounded-lg border border-border bg-surface p-2.5 text-sm leading-5 text-muted">
+              <span className="font-medium text-primary">Success check:</span> {rec.success_check}
             </div>
           )}
         </div>
@@ -154,41 +163,42 @@ function StructuredRecommendationCard({ rec }: { rec: StructuredRecommendation }
 
 function RecommendationsSection({
   recommendations,
-  profileId,
 }: {
   recommendations: StructuredRecommendation[]
-  profileId: string
 }) {
   const repositoryFixes = recommendations.filter((rec) => rec.recommendation_type !== 'audit_environment')
   const auditEnvironment = recommendations.filter((rec) => rec.recommendation_type === 'audit_environment')
   return (
-    <section className="rounded-2xl border border-border bg-surface p-4">
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <section className="fix-plan-section rounded-xl border border-border bg-surface p-3.5 sm:p-4">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-faint">
-            Recommended actions
+            Canonical fix plan
           </h3>
-          <p className="mt-1 text-xs text-muted">Structured, deterministic plan for {profileId.replace(/_/g, ' ')}</p>
+          <p className="mt-1 text-sm text-muted">Deterministic recommendations, in the order DrRepo returned them.</p>
         </div>
-        <span className="self-start rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-[10px] font-medium text-brand sm:self-auto">
+        <span className="self-start rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-[12.5px] font-medium text-brand sm:self-auto">
           Intelligence v1
         </span>
       </div>
       {repositoryFixes.length > 0 ? (
-        <ol className="space-y-3">
-          {repositoryFixes.slice(0, 3).map((rec) => (
-            <StructuredRecommendationCard key={rec.id || rec.title} rec={rec} />
-          ))}
-        </ol>
+        <>
+          <div className="mb-2 text-sm font-semibold text-primary">First actions</div>
+          <ol className="space-y-2.5">
+            {repositoryFixes.slice(0, 3).map((rec) => (
+              <StructuredRecommendationCard key={rec.id || rec.title} rec={rec} emphasis="primary" />
+            ))}
+          </ol>
+        </>
       ) : (
         <div className="rounded-xl border border-health/25 bg-health/5 p-3 text-sm text-muted">
           No repository-fix recommendations were generated from observed evidence.
         </div>
       )}
       {repositoryFixes.length > 3 && (
-        <details className="mt-4 border-t border-border pt-3">
+        <details className="mt-3 border-t border-border pt-2.5">
           <summary className="inline-flex min-h-8 cursor-pointer items-center text-xs text-muted transition-colors hover:text-primary">
-            Show {repositoryFixes.length - 3} additional actions
+            Show more actions ({repositoryFixes.length - 3})
           </summary>
           <ol className="mt-2 space-y-2">
             {repositoryFixes.slice(3).map((rec) => (
@@ -198,9 +208,9 @@ function RecommendationsSection({
         </details>
       )}
       {auditEnvironment.length > 0 && (
-        <details className="mt-4 border-t border-border pt-3">
+        <details className="mt-3 border-t border-border pt-2.5">
           <summary className="inline-flex min-h-8 cursor-pointer items-center text-xs text-muted transition-colors hover:text-primary">
-            Audit-environment improvements
+            Audit-environment limitations and improvements
           </summary>
           <ol className="mt-2 space-y-2">
             {auditEnvironment.slice(0, 4).map((rec) => (
@@ -230,20 +240,20 @@ function AIAdvisorSection({ aiAdvisor, profileId }: { aiAdvisor: AIAdvisorResult
   const sourceColor = isLlm ? 'border-brand/30 bg-brand/10 text-brand' : 'border-attention/30 bg-attention/10 text-attention'
 
   return (
-    <section className="mt-6 rounded-2xl border border-border bg-surface p-4">
-      <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+    <section className="mt-4 rounded-xl border border-border bg-surface p-3.5 sm:p-4">
+      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-faint">
             AI advisor annotation
           </h3>
-          <p className="mt-1 text-xs text-muted">Explains the canonical fix plan for {profileId.replace(/_/g, ' ')}</p>
+          <p className="mt-1 text-sm text-muted">Explains the canonical deterministic plan for {profileId.replace(/_/g, ' ')}; it does not replace the action order above.</p>
         </div>
-        <span className={`self-start rounded-full border px-2.5 py-1 text-[10px] font-medium sm:self-auto ${sourceColor}`}>
+        <span className={`self-start rounded-full border px-2.5 py-1 text-[12.5px] font-medium sm:self-auto ${sourceColor}`}>
           {sourceLabel}
         </span>
       </div>
 
-      <div className="mb-4 flex flex-wrap gap-2 text-xs text-muted">
+      <div className="mb-4 flex flex-wrap gap-2 text-sm text-muted">
         <span className="rounded-lg border border-border bg-base px-2 py-1">Status: {status}</span>
         {isLlm && provider && (
           <span className="rounded-lg border border-border bg-base px-2 py-1">Provider: {provider}</span>
@@ -265,7 +275,7 @@ function AIAdvisorSection({ aiAdvisor, profileId }: { aiAdvisor: AIAdvisorResult
           {grounding.violation_codes && grounding.violation_codes.length > 0 && (
             <div className="mt-2 flex flex-wrap gap-2">
               {grounding.violation_codes.slice(0, 6).map((code) => (
-                <span key={code} className="rounded-full border border-error/25 bg-base px-2 py-1 font-mono text-[10px] text-error">
+                <span key={code} className="rounded-full border border-error/25 bg-base px-2 py-1 font-mono text-[12.5px] text-error">
                   {code}
                 </span>
               ))}
@@ -282,8 +292,8 @@ function AIAdvisorSection({ aiAdvisor, profileId }: { aiAdvisor: AIAdvisorResult
       )}
 
       {fallbackReason && (
-        <div className="mb-4 rounded-xl border border-attention/25 bg-attention/5 p-3 text-xs text-muted">
-          <span className="font-medium text-attention">Fallback:</span> {fallbackReason}
+        <div className="mb-4 rounded-xl border border-attention/25 bg-attention/5 p-3 text-sm leading-6 text-muted">
+          <span className="font-medium text-attention">Provider output was not accepted:</span> {fallbackReason}. Canonical deterministic guidance remains available above.
         </div>
       )}
 
@@ -343,9 +353,9 @@ export function AdvisorPanel({ advisor, aiAdvisor, profileId, recommendations = 
 
   return (
     <>
-      {hasRecommendations && <RecommendationsSection recommendations={recommendations} profileId={profileId} />}
+      {hasRecommendations && <RecommendationsSection recommendations={recommendations} />}
       {!hasRecommendations && showDeterministic && (
-        <section className="rounded-2xl border border-border bg-surface p-4">
+        <section className="rounded-xl border border-border bg-surface p-4">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h3 className="text-xs font-medium uppercase tracking-[0.16em] text-faint">
@@ -353,7 +363,7 @@ export function AdvisorPanel({ advisor, aiAdvisor, profileId, recommendations = 
               </h3>
               <p className="mt-1 text-xs text-muted">Prioritized for {profileName}</p>
             </div>
-            <span className="self-start rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-[10px] font-medium text-brand sm:self-auto">
+            <span className="self-start rounded-full border border-brand/30 bg-brand/10 px-2.5 py-1 text-[12.5px] font-medium text-brand sm:self-auto">
               Advisor
             </span>
           </div>
@@ -371,7 +381,7 @@ export function AdvisorPanel({ advisor, aiAdvisor, profileId, recommendations = 
               </div>
               <ol className="space-y-3">
                 {fixNow.map((group, index) => (
-                  <li key={group.key} className="rounded-2xl border border-error/25 bg-error/5 p-4">
+                  <li key={group.key} className="rounded-xl border border-error/25 bg-error/5 p-4">
                     <div className="flex items-start gap-3">
                       <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-error/30 bg-error/10 font-mono text-xs text-error">
                         {index + 1}

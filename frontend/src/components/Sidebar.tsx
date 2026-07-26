@@ -51,7 +51,7 @@ export function Sidebar({ onReset }: SidebarProps) {
         <button
           type="button"
           onClick={onReset}
-          className="flex min-h-11 min-w-0 items-center rounded-xl px-1 text-left transition-colors hover:bg-white/[0.03]"
+          className="flex min-h-11 min-w-0 items-center rounded-xl px-1 text-left transition-colors hover:bg-surface-2/65"
           aria-label="Start a new diagnostic"
           title="New diagnostic"
         >
@@ -61,7 +61,7 @@ export function Sidebar({ onReset }: SidebarProps) {
         <button
           type="button"
           onClick={() => setCollapsed((c) => !c)}
-          className="hidden min-h-10 min-w-10 place-items-center rounded-xl text-muted transition-colors hover:bg-white/[0.03] hover:text-primary sm:grid"
+          className="hidden min-h-10 min-w-10 place-items-center rounded-xl text-muted transition-colors hover:bg-surface-2/65 hover:text-primary sm:grid"
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >

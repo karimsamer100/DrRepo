@@ -1,23 +1,37 @@
 import { useEffect, useState } from 'react'
 import { getHealth } from '../api/client'
+import type { ResolvedTheme, ThemePreference } from '../App'
+
+interface AuditConsoleHeaderProps {
+  onNew: () => void
+  themePreference: ThemePreference
+  resolvedTheme: ResolvedTheme
+  onThemePreferenceChange: (preference: ThemePreference) => void
+}
 
 function HeaderMark() {
   return (
     <svg
-      className="h-5 w-5"
-      viewBox="0 0 28 28"
+      className="h-6 w-6"
+      viewBox="0 0 32 32"
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
       aria-hidden="true"
     >
-      <rect x="1" y="1" width="26" height="26" rx="7" stroke="currentColor" strokeWidth="2" />
-      <path d="M7 14h14M14 7v14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M19.5 8.5h3M19.5 14h2.2M19.5 19.5h3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      <rect x="5" y="6" width="20" height="18" rx="3.5" stroke="currentColor" strokeWidth="1.8" />
+      <path d="M10 11h5.5M10 16h3.5M10 21h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+      <path d="M18 17.5l2.4 2.4 5.1-6.1" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+      <path d="M7.5 4.5h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.55" />
     </svg>
   )
 }
 
-export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
+export function AuditConsoleHeader({
+  onNew,
+  themePreference,
+  resolvedTheme,
+  onThemePreferenceChange,
+}: AuditConsoleHeaderProps) {
   const [health, setHealth] = useState<'ok' | 'error' | 'checking'>('checking')
 
   useEffect(() => {
@@ -34,20 +48,53 @@ export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
     }
   }, [])
 
+  const toggleTheme = () => {
+    const next: ThemePreference = resolvedTheme === 'dark' ? 'light' : 'dark'
+    onThemePreferenceChange(next)
+  }
+
   return (
-    <header className="flex min-h-16 items-center justify-between border-b border-border bg-panel px-4 lg:px-6">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl border border-brand/25 bg-brand/10 text-brand">
+    <header className="flex min-h-14 items-center justify-between border-b border-border bg-panel px-4 lg:px-6">
+      <button
+        type="button"
+        onClick={onNew}
+        aria-label="Return to new audit"
+        className="group flex min-w-0 cursor-pointer items-center gap-3 rounded-lg pr-2 text-left transition-colors hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
+      >
+        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-brand/25 bg-brand/10 text-brand transition-colors group-hover:bg-brand/15">
           <HeaderMark />
-        </div>
-        <div className="min-w-0">
-          <div className="text-sm font-semibold tracking-tight text-primary">DrRepo</div>
-          <div className="text-[10px] font-medium uppercase tracking-[0.18em] text-faint">
+        </span>
+        <span className="min-w-0">
+          <span className="block text-[15px] font-semibold tracking-tight text-primary transition-colors group-hover:text-brand">DrRepo</span>
+          <span className="block text-[11px] font-medium uppercase tracking-[0.12em] text-muted">
             Repository Audit
-          </div>
-        </div>
-      </div>
-      <div className="flex items-center gap-3">
+          </span>
+        </span>
+      </button>
+      <div className="flex items-center gap-2 sm:gap-3">
+        <button
+          type="button"
+          onClick={toggleTheme}
+          aria-label={`Switch to ${resolvedTheme === 'dark' ? 'light' : 'dark'} theme`}
+          aria-pressed={resolvedTheme === 'dark'}
+          className="theme-switch"
+          data-theme-state={resolvedTheme}
+          title={`Theme preference: ${themePreference}`}
+        >
+          <span className="theme-switch-symbol theme-switch-sun" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none">
+              <circle cx="8" cy="8" r="2.3" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M8 1.5v1.4M8 13.1v1.4M14.5 8h-1.4M2.9 8H1.5M12.6 3.4l-1 1M4.4 11.6l-1 1M12.6 12.6l-1-1M4.4 4.4l-1-1" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+          </span>
+          <span className="theme-switch-symbol theme-switch-moon" aria-hidden="true">
+            <svg viewBox="0 0 16 16" fill="none">
+              <path d="M12.3 10.1A5.2 5.2 0 0 1 5.9 3.7a5.3 5.3 0 1 0 6.4 6.4Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <span className="theme-switch-knob" aria-hidden="true" />
+          <span className="sr-only">Current theme preference: {themePreference}</span>
+        </button>
         <span
           role="status"
           aria-live="polite"
@@ -70,15 +117,13 @@ export function AuditConsoleHeader({ onNew }: { onNew?: () => void }) {
           />
           {health === 'ok' ? 'API online' : health === 'error' ? 'API offline' : 'Checking'}
         </span>
-      {onNew && (
         <button
           type="button"
           onClick={onNew}
-          className="inline-flex min-h-10 items-center rounded-xl border border-border px-3 text-xs font-medium text-faint transition-colors duration-150 ease-out-strong hover:border-brand/30 hover:bg-brand/5 hover:text-brand"
+          className="inline-flex min-h-9 items-center rounded-lg border border-border px-3 text-xs font-medium text-muted transition-colors duration-150 ease-out-strong hover:border-brand/30 hover:bg-brand/5 hover:text-brand"
         >
-          New diagnostic
+          New audit
         </button>
-      )}
       </div>
     </header>
   )

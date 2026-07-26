@@ -34,11 +34,11 @@ export function ResultNavigation({ activeView, onViewChange, counts = {} }: Resu
 
   return (
     <nav
-      className="sticky top-0 z-20 mb-6 border-y border-border bg-base py-2"
+      className="sticky top-0 z-20 mb-3 -mx-4 border-y border-border bg-base/95 px-4 py-1.5 sm:mx-0 sm:rounded-xl sm:border sm:bg-surface/95"
       aria-label="Audit result sections"
     >
-      <div className="overflow-x-auto pb-1" role="tablist" aria-label="Audit result sections">
-        <div className="flex min-w-max gap-1">
+      <div className="overflow-x-auto" role="tablist" aria-label="Audit result sections">
+        <div className="mx-auto flex w-max min-w-full gap-1 rounded-lg bg-base p-1 sm:min-w-0">
           {RESULT_VIEWS.map((view, index) => {
             const active = activeView === view.id
             const count = counts[view.id]
@@ -57,15 +57,15 @@ export function ResultNavigation({ activeView, onViewChange, counts = {} }: Resu
                 tabIndex={active ? 0 : -1}
                 onClick={() => onViewChange(view.id)}
                 onKeyDown={(event) => handleKeyDown(event, index)}
-                className={`inline-flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm font-medium transition-colors ${
+                className={`inline-flex min-h-8 items-center justify-center gap-2 rounded-md px-3 text-sm font-medium transition-colors sm:min-h-9 ${
                   active
-                    ? 'bg-brand/10 text-brand shadow-[0_0_0_1px_rgba(34,211,238,0.16)_inset]'
-                    : 'text-muted hover:bg-white/[0.03] hover:text-primary'
+                    ? 'bg-brand text-on-brand'
+                    : 'text-muted hover:bg-surface-2/65 hover:text-primary'
                 }`}
               >
                 {view.label}
                 {typeof count === 'number' && count > 0 && (
-                  <span className="rounded-full border border-current/20 px-1.5 py-0.5 font-mono text-[10px]">
+                  <span className="rounded-full border border-current/20 px-1.5 py-0.5 font-mono text-[12px]">
                     {count}
                   </span>
                 )}

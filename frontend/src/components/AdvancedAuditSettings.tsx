@@ -55,7 +55,7 @@ export function AdvancedAuditSettings({
 
   return (
     <details className="rounded-xl border border-border bg-base" data-testid="advanced-audit-settings">
-      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-medium text-primary transition-colors hover:text-brand [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center justify-between gap-3 px-3.5 py-2.5 text-sm font-medium text-primary transition-colors hover:text-brand [&::-webkit-details-marker]:hidden">
         <span>
           Advanced audit settings
           <span className="mt-0.5 block text-xs font-normal text-faint">
@@ -65,7 +65,7 @@ export function AdvancedAuditSettings({
         <span aria-hidden="true" className="text-lg leading-none text-faint">+</span>
       </summary>
 
-      <div className="space-y-5 border-t border-border px-4 py-4">
+      <div className="space-y-4 border-t border-border px-3.5 py-3.5">
         <div>
           <div id="analysis-mode-label" className="mb-2 text-xs font-medium text-faint">
             How thoroughly should DrRepo inspect this repository?
@@ -82,7 +82,7 @@ export function AdvancedAuditSettings({
                   aria-pressed={analysisMode === mode}
                   disabled={disabled}
                   onClick={() => onAnalysisModeChange(mode)}
-                  className={`rounded-xl border p-3 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
+                  className={`rounded-xl border p-2.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${
                     analysisMode === mode
                       ? 'border-brand/30 bg-brand/10 text-brand'
                       : 'border-border bg-surface text-muted hover:text-primary'
@@ -126,7 +126,7 @@ export function AdvancedAuditSettings({
           )}
 
           {analysisMode === 'deep_isolated' && (
-            <div className="mt-3 space-y-3 rounded-lg border border-warning/30 bg-warning/5 px-3 py-3 text-xs leading-5 text-muted">
+            <div className="mt-3 space-y-2 rounded-lg border border-warning/30 bg-warning/5 px-3 py-2.5 text-xs leading-5 text-muted">
               <p className="text-warning">
                 Supported verification runs inside a disposable DrRepo-controlled container. This is not a production SaaS sandbox.
               </p>
@@ -156,7 +156,7 @@ export function AdvancedAuditSettings({
         <div>
           <div className="mb-2 text-xs font-medium text-faint">Optional extras</div>
           <div className="space-y-2">
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface px-3.5 py-3">
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface px-3 py-2.5">
               <input
                 type="checkbox"
                 checked={aiEnabled}
@@ -182,7 +182,7 @@ export function AdvancedAuditSettings({
               </p>
             )}
 
-            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface px-3.5 py-3">
+            <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-border bg-surface px-3 py-2.5">
               <input
                 type="checkbox"
                 checked={includeMarkdown}

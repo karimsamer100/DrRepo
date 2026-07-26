@@ -1,9 +1,32 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>DrRepo - Audit Console</title>
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#07191E" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#EEE9E1" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='5' y='6' width='20' height='18' rx='4' fill='%2307191E' stroke='%23ADDFF1' stroke-width='2'/%3E%3Cpath d='M10 12h6M10 17h4M18 17l2 2 5-6' fill='none' stroke='%2302F5A1' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"
+    />
+    <title>DrRepo — Repository Audit</title>
+    <script>
+      ;(() => {
+        const key = 'drrepo.themePreference'
+        const valid = new Set(['system', 'light', 'dark'])
+        let preference = 'system'
+        try {
+          const stored = localStorage.getItem(key)
+          preference = valid.has(stored) ? stored : 'system'
+        } catch {
+          preference = 'system'
+        }
+        const systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches
+        const theme = preference === 'system' ? (systemDark ? 'dark' : 'light') : preference
+        document.documentElement.dataset.theme = theme
+        document.documentElement.dataset.themePreference = preference
+      })()
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link

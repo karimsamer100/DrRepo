@@ -38,7 +38,7 @@ function LayerMap({ assessment }: { assessment: ArchitectureAssessment }) {
           <section key={layer.id} className="rounded-2xl border border-border bg-base/60 p-4">
             <div className="flex items-center justify-between gap-3">
               <h3 className="text-sm font-semibold text-primary">{layer.label}</h3>
-              <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-faint">
+              <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[12px] uppercase tracking-[0.1em] text-faint">
                 {layer.confidence || 'medium'}
               </span>
             </div>
@@ -93,7 +93,7 @@ function HotspotCard({ hotspot }: { hotspot: RiskHotspot }) {
         </div>
         <div className={`shrink-0 rounded-xl border px-3 py-2 text-right ${toneForRisk(hotspot.risk_level)}`}>
           <div className="text-lg font-semibold">{hotspot.risk_score}</div>
-          <div className="text-[10px] uppercase tracking-[0.14em]">{hotspot.risk_level}</div>
+          <div className="text-[12px] uppercase tracking-[0.1em]">{hotspot.risk_level}</div>
         </div>
       </div>
       <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -122,6 +122,10 @@ function HotspotCard({ hotspot }: { hotspot: RiskHotspot }) {
 
 export function ArchitecturePanel({ assessment }: { assessment?: ArchitectureAssessment }) {
   if (!assessment) return null
+  const significantHotspots = (assessment.hotspots || []).filter((hotspot) =>
+    ['critical', 'high', 'medium'].includes(hotspot.risk_level)
+  )
+  const hotspotHeading = significantHotspots.length > 0 ? 'Top risk hotspots' : 'Architecture review areas'
 
   return (
     <section className="rounded-2xl border border-border bg-surface p-5 shadow-card sm:p-6">
@@ -157,7 +161,12 @@ export function ArchitecturePanel({ assessment }: { assessment?: ArchitectureAss
 
       {!!assessment.hotspots?.length && (
         <div className="mt-6 space-y-3">
-          <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-faint">Top risk hotspots</div>
+          <div className="text-[11px] font-medium uppercase tracking-[0.18em] text-faint">{hotspotHeading}</div>
+          {significantHotspots.length === 0 && (
+            <p className="text-sm leading-6 text-muted">
+              No significant architecture hotspot was detected; these are lower-priority review areas from static evidence.
+            </p>
+          )}
           {assessment.hotspots.slice(0, 5).map((hotspot) => (
             <HotspotCard key={hotspot.id} hotspot={hotspot} />
           ))}
