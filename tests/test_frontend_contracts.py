@@ -1,4 +1,9 @@
+import struct
 from pathlib import Path
+
+
+def png_dimensions(path: Path) -> tuple[int, int]:
+    return struct.unpack(">II", path.read_bytes()[16:24])
 
 
 def test_result_overview_uses_backend_diagnosis_label_for_visible_verdict():
@@ -158,13 +163,32 @@ def test_launcher_columns_use_content_driven_height():
 
 def test_header_has_compact_logo_wordmark_status_and_new_audit_action():
     header = Path("frontend/src/components/AuditConsoleHeader.tsx").read_text(encoding="utf-8")
+    mark = Path("frontend/src/components/DrRepoMark.tsx").read_text(encoding="utf-8")
     app = Path("frontend/src/App.tsx").read_text(encoding="utf-8")
 
-    assert "function HeaderMark" in header
+    assert "import { DrRepoMark } from './DrRepoMark'" in header
+    assert '<DrRepoMark className="h-11 w-11 shrink-0 object-contain" />' in header
+    assert "export function DrRepoMark" in mark
+    assert 'src="/brand/drrepo-favicon.png"' in mark
+    assert "viewBox" not in mark
+    assert "<svg" not in mark
+    assert "<image" not in mark
+    assert "drrepo-logo-horizontal" not in header
+    assert "drrepo-logo-stacked" not in header
+    assert "drrepo-favicon" not in header
     assert "Repository Audit" in header
     assert "API online" in header
     assert "New audit" in header
-    assert "min-h-14" in header
+    assert "min-h-[52px]" in header
+    assert "h-11 w-11" in header
+    assert "object-contain" in header
+    assert "bg-surface/45" not in header
+    assert "border-brand/20" not in header
+    assert "gap-3" in header
+    assert "text-[22px]" in header
+    assert "text-[15px]" in header
+    assert "tracking-[0.16em]" in header
+    assert "text-info" in header
     assert 'aria-label="Return to new audit"' in header
     assert "onNew={handleNewAudit}" in app
     assert "window.scrollTo" in app
@@ -220,13 +244,79 @@ def test_warm_light_theme_has_distinct_surfaces_and_azure_interactions():
 
 def test_browser_metadata_and_prepaint_theme_are_publish_ready():
     html = Path("frontend/index.html").read_text(encoding="utf-8")
+    favicon = Path("frontend/public/brand/drrepo-favicon.png")
 
     assert "<title>DrRepo — Repository Audit</title>" in html
-    assert 'rel="icon"' in html
+    assert 'name="description"' in html
+    assert "Evidence-driven repository auditing and prioritized remediation." in html
+    assert html.count('rel="icon"') == 1
+    assert "shortcut icon" not in html
+    assert "apple-touch-icon" not in html
+    assert 'rel="icon" type="image/png" href="/brand/drrepo-favicon.png"' in html
+    assert "drrepo-favicon.svg" not in html
+    assert "drrepo-header-mark" not in html
     assert 'name="theme-color"' in html
     assert 'content="#EEE9E1"' in html
     assert "document.documentElement.dataset.theme" in html
     assert "document.documentElement.dataset.themePreference" in html
+    assert favicon.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+    assert png_dimensions(favicon) == (1024, 1024)
+
+
+def test_drrepo_brand_assets_are_centralized_without_new_dependencies():
+    header = Path("frontend/src/components/AuditConsoleHeader.tsx").read_text(encoding="utf-8")
+    mark = Path("frontend/src/components/DrRepoMark.tsx").read_text(encoding="utf-8")
+    html = Path("frontend/index.html").read_text(encoding="utf-8")
+    package = Path("frontend/package.json").read_text(encoding="utf-8")
+
+    assert "function HeaderMark" not in header
+    assert "DrRepoMark" in header
+    assert "DrRepo</span>" in header
+    assert "Repository Audit" in header
+    assert "decorative = true" in mark
+    assert "aria-hidden={decorative ? 'true' : undefined}" in mark
+    assert "alt={decorative ? '' : title}" in mark
+    assert "/brand/drrepo-favicon.png" in html
+    assert "styled-components" not in package
+    assert "lucide" not in package
+
+
+def test_drrepo_brand_assets_use_supplied_pngs_without_generated_svgs():
+    asset_paths = [
+        Path("frontend/public/brand/drrepo-header-mark-compact.png"),
+        Path("frontend/public/brand/drrepo-header-mark.png"),
+        Path("frontend/public/brand/drrepo-mark.png"),
+        Path("frontend/public/brand/drrepo-logo-horizontal.png"),
+        Path("frontend/public/brand/drrepo-logo-stacked.png"),
+        Path("frontend/public/brand/drrepo-favicon.png"),
+    ]
+
+    for path in asset_paths:
+        assert path.read_bytes().startswith(b"\x89PNG\r\n\x1a\n")
+
+    assert not Path("frontend/public/brand/drrepo-mark.svg").exists()
+    assert not Path("frontend/public/brand/drrepo-logo-horizontal.svg").exists()
+    assert not Path("frontend/public/brand/drrepo-logo-stacked.svg").exists()
+    assert png_dimensions(Path("frontend/public/brand/drrepo-header-mark-compact.png")) == (524, 524)
+    assert Path("frontend/public/brand/drrepo-header-mark-compact.png").stat().st_size == 341213
+    assert Path("frontend/public/brand/drrepo-mark.png").stat().st_size == 2171837
+    assert Path("frontend/public/brand/drrepo-logo-horizontal.png").stat().st_size == 2134696
+    assert Path("frontend/public/brand/drrepo-logo-stacked.png").stat().st_size == 1347937
+    assert png_dimensions(Path("frontend/public/brand/drrepo-favicon.png")) == (1024, 1024)
+
+
+def test_compact_header_and_favicon_do_not_use_full_detail_logo():
+    mark = Path("frontend/src/components/DrRepoMark.tsx").read_text(encoding="utf-8")
+    header = Path("frontend/src/components/AuditConsoleHeader.tsx").read_text(encoding="utf-8")
+
+    assert 'src="/brand/drrepo-favicon.png"' in mark
+    assert "drrepo-header-mark-light" not in mark
+    assert "drrepo-header-mark-image-dark" not in mark
+    assert "drrepo-header-mark-image-light" not in mark
+    assert "h-11 w-11" in header
+    assert "object-contain" in header
+    assert "drrepo-logo-horizontal" not in header
+    assert "drrepo-logo-stacked" not in header
 
 
 def test_advanced_audit_settings_are_collapsed_and_preserve_all_modes_and_extras():

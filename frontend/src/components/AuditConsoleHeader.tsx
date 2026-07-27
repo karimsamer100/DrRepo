@@ -1,29 +1,13 @@
 import { useEffect, useState } from 'react'
 import { getHealth } from '../api/client'
 import type { ResolvedTheme, ThemePreference } from '../App'
+import { DrRepoMark } from './DrRepoMark'
 
 interface AuditConsoleHeaderProps {
   onNew: () => void
   themePreference: ThemePreference
   resolvedTheme: ResolvedTheme
   onThemePreferenceChange: (preference: ThemePreference) => void
-}
-
-function HeaderMark() {
-  return (
-    <svg
-      className="h-6 w-6"
-      viewBox="0 0 32 32"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden="true"
-    >
-      <rect x="5" y="6" width="20" height="18" rx="3.5" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M10 11h5.5M10 16h3.5M10 21h5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-      <path d="M18 17.5l2.4 2.4 5.1-6.1" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M7.5 4.5h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" opacity="0.55" />
-    </svg>
-  )
 }
 
 export function AuditConsoleHeader({
@@ -54,19 +38,17 @@ export function AuditConsoleHeader({
   }
 
   return (
-    <header className="flex min-h-14 items-center justify-between border-b border-border bg-panel px-4 lg:px-6">
+    <header className="flex min-h-[52px] items-center justify-between border-b border-border bg-panel px-4 lg:px-6">
       <button
         type="button"
         onClick={onNew}
         aria-label="Return to new audit"
-        className="group flex min-w-0 cursor-pointer items-center gap-3 rounded-lg pr-2 text-left transition-colors hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
+        className="group flex min-w-0 cursor-pointer items-center gap-3 rounded-lg pr-1 text-left transition-colors hover:text-brand focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand"
       >
-        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-brand/25 bg-brand/10 text-brand transition-colors group-hover:bg-brand/15">
-          <HeaderMark />
-        </span>
-        <span className="min-w-0">
-          <span className="block text-[15px] font-semibold tracking-tight text-primary transition-colors group-hover:text-brand">DrRepo</span>
-          <span className="block text-[11px] font-medium uppercase tracking-[0.12em] text-muted">
+        <DrRepoMark className="h-11 w-11 shrink-0 object-contain" />
+        <span className="min-w-0 leading-none">
+          <span className="block text-[22px] font-bold tracking-[-0.02em] text-primary transition-colors group-hover:text-brand">DrRepo</span>
+          <span className="mt-1 block text-[15px] font-semibold uppercase tracking-[0.16em] text-info">
             Repository Audit
           </span>
         </span>
