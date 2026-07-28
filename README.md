@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="frontend/public/brand/drrepo-logo-horizontal.png" alt="DrRepo — Repository Audit" width="720" />
+  <img src="frontend/public/brand/drrepo-favicon - Copy.png" alt="DrRepo — Repository Audit" width="350" />
 </p>
 
 <h1 align="center">DrRepo</h1>
